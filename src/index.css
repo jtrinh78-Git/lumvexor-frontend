@@ -443,3 +443,23 @@ a {
   align-items: center;
   gap: 10px;
 }
+/* SECTION: Inputs */
+
+.lvx-input {
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--lvx-border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--lvx-text);
+  padding: 0 12px;
+  outline: none;
+}
+
+.lvx-input::placeholder {
+  color: rgba(166, 172, 205, 0.7);
+}
+
+.lvx-input:focus {
+  border-color: rgba(110, 168, 254, 0.35);
+  box-shadow: 0 0 0 3px rgba(110, 168, 254, 0.12);
+}
