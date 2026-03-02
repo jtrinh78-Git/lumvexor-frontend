@@ -1,4 +1,7 @@
 import { useParams } from "react-router-dom";
+import { Badge } from "../../../components/ui/Badge";
+import { Card, CardBody, CardTitle } from "../../../components/ui/Card";
+import { PageHeader } from "../../../components/ui/PageHeader";
 
 // SECTION: ProjectOverview
 export function ProjectOverview() {
@@ -6,31 +9,35 @@ export function ProjectOverview() {
 
   return (
     <div className="lvx-page">
-      <h2 className="lvx-h2">Overview</h2>
+      <PageHeader
+        title="Overview"
+        subtitle="Workspace status, cadence, and operational controls."
+        right={<Badge variant="accent">Workspace Active</Badge>}
+      />
 
       <div className="lvx-grid">
-        <div className="lvx-card">
-          <div className="lvx-card-title">Visibility Status</div>
-          <div className="lvx-muted">
-            Project <strong>{projectId}</strong> workspace is live. Next: previews + watermarks + expiration rules.
-          </div>
-        </div>
+        <Card>
+          <CardTitle>Visibility Status</CardTitle>
+          <CardBody>
+            Project <strong>{projectId}</strong> workspace is live. Next: previews + watermarking + expiration rules.
+          </CardBody>
+        </Card>
 
-        <div className="lvx-card">
-          <div className="lvx-card-title">Cadence</div>
-          <ul className="lvx-list">
-            <li>Tier: (pending)</li>
-            <li>Posts/week: (pending)</li>
-            <li>Next publish date: (pending)</li>
-          </ul>
-        </div>
+        <Card>
+          <CardTitle>Cadence</CardTitle>
+          <CardBody>
+            <ul className="lvx-list">
+              <li>Tier: (pending)</li>
+              <li>Posts/week: (pending)</li>
+              <li>Next publish date: (pending)</li>
+            </ul>
+          </CardBody>
+        </Card>
 
-        <div className="lvx-card">
-          <div className="lvx-card-title">Controls</div>
-          <div className="lvx-muted">
-            Later: agent assignment, billing state, platform config.
-          </div>
-        </div>
+        <Card>
+          <CardTitle>Controls</CardTitle>
+          <CardBody>Later: agent assignment, billing state, platform configuration.</CardBody>
+        </Card>
       </div>
     </div>
   );

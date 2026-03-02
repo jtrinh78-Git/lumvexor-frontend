@@ -315,3 +315,131 @@ a {
     grid-template-columns: 1fr;
   }
 }
+/* SECTION: UI Primitives */
+
+.ui-card {
+  border: 1px solid var(--lvx-border);
+  border-radius: 14px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ui-card__title {
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.ui-card__body {
+  color: var(--lvx-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  font-weight: 800;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ui-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ui-btn--md {
+  height: 40px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+.ui-btn--sm {
+  height: 34px;
+  padding: 0 12px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+
+.ui-btn--primary {
+  border-color: rgba(110, 168, 254, 0.35);
+  background: rgba(110, 168, 254, 0.16);
+  color: var(--lvx-text);
+}
+
+.ui-btn--primary:hover {
+  background: rgba(110, 168, 254, 0.22);
+}
+
+.ui-btn--secondary {
+  border-color: var(--lvx-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--lvx-text);
+}
+
+.ui-btn--secondary:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ui-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--lvx-muted);
+}
+
+.ui-btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--lvx-text);
+}
+
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  border: 1px solid var(--lvx-border);
+}
+
+.ui-badge--neutral {
+  color: var(--lvx-muted);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.ui-badge--accent {
+  color: var(--lvx-text);
+  border-color: rgba(110, 168, 254, 0.35);
+  background: rgba(110, 168, 254, 0.14);
+}
+
+.ui-pageheader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ui-pageheader__title {
+  font-size: 22px;
+  font-weight: 900;
+  margin: 0;
+}
+
+.ui-pageheader__subtitle {
+  margin-top: 6px;
+  color: var(--lvx-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.ui-pageheader__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
