@@ -1,3 +1,244 @@
+:root {
+  --lvx-bg: #0b0c10;
+  --lvx-panel: #11131a;
+  --lvx-panel-2: #151826;
+  --lvx-text: #e8eaf2;
+  --lvx-muted: #a6accd;
+  --lvx-border: rgba(255, 255, 255, 0.08);
+  --lvx-accent: #6ea8fe;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--lvx-bg);
+  color: var(--lvx-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial,
+    "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+#root {
+  height: 100%;
+}
+
+/* SECTION: App Shell */
+
+.lvx-app {
+  display: flex;
+  min-height: 100vh;
+}
+
+.lvx-sidebar {
+  width: 260px;
+  border-right: 1px solid var(--lvx-border);
+  background: linear-gradient(180deg, var(--lvx-panel), var(--lvx-panel-2));
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.lvx-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--lvx-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.lvx-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: radial-gradient(circle at 30% 30%, var(--lvx-accent), transparent);
+  border: 1px solid var(--lvx-border);
+}
+
+.lvx-brand-name {
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+.lvx-brand-sub,
+.lvx-muted {
+  color: var(--lvx-muted);
+  font-size: 13px;
+}
+
+.lvx-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lvx-navlink {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  color: var(--lvx-muted);
+  background: transparent;
+  font-weight: 600;
+}
+
+.lvx-navlink:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--lvx-text);
+}
+
+.lvx-navlink.is-active {
+  background: rgba(110, 168, 254, 0.12);
+  border-color: rgba(110, 168, 254, 0.25);
+  color: var(--lvx-text);
+}
+
+.lvx-sidebar-footer {
+  margin-top: auto;
+  padding: 10px;
+  border-top: 1px solid var(--lvx-border);
+}
+
+.lvx-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lvx-topbar {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--lvx-border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.lvx-topbar-title {
+  font-weight: 800;
+}
+
+.lvx-pill {
+  font-size: 12px;
+  color: var(--lvx-muted);
+  border: 1px solid var(--lvx-border);
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+.lvx-content {
+  padding: 18px;
+}
+
+/* SECTION: Landing + Page + Cards */
+
+.lvx-landing {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.lvx-landing-inner {
+  width: 100%;
+  max-width: 860px;
+}
+
+.lvx-h1 {
+  margin: 0 0 8px;
+  font-size: 44px;
+  letter-spacing: -0.02em;
+}
+
+.lvx-h2 {
+  margin: 0 0 12px;
+  font-size: 22px;
+}
+
+.lvx-lead {
+  margin: 0 0 18px;
+  color: var(--lvx-muted);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.lvx-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.lvx-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(110, 168, 254, 0.35);
+  background: rgba(110, 168, 254, 0.16);
+  color: var(--lvx-text);
+  font-weight: 700;
+}
+
+.lvx-button:hover {
+  background: rgba(110, 168, 254, 0.22);
+}
+
+.lvx-button-secondary {
+  border-color: var(--lvx-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--lvx-text);
+}
+
+.lvx-card {
+  border: 1px solid var(--lvx-border);
+  border-radius: 14px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.lvx-card-title {
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.lvx-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--lvx-muted);
+}
+
+.lvx-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lvx-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* SECTION: Workspace */
+
 .lvx-rowlink {
   display: flex;
   align-items: center;
@@ -35,7 +276,7 @@
 }
 
 .lvx-project-title {
-  font-weight: 800;
+  font-weight: 900;
   font-size: 18px;
 }
 
@@ -52,7 +293,7 @@
   color: var(--lvx-muted);
   background: rgba(255, 255, 255, 0.02);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .lvx-tab:hover {
@@ -64,4 +305,13 @@
   color: var(--lvx-text);
   border-color: rgba(110, 168, 254, 0.35);
   background: rgba(110, 168, 254, 0.14);
+}
+
+@media (max-width: 960px) {
+  .lvx-sidebar {
+    width: 220px;
+  }
+  .lvx-grid {
+    grid-template-columns: 1fr;
+  }
 }
