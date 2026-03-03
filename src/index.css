@@ -463,3 +463,13 @@ a {
   border-color: rgba(110, 168, 254, 0.35);
   box-shadow: 0 0 0 3px rgba(110, 168, 254, 0.12);
 }
+/* SECTION: Inputs - select/textarea support */
+
+.lvx-input select,
+select.lvx-input {
+  appearance: none;
+}
+
+textarea.lvx-input {
+  resize: vertical;
+}
