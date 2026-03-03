@@ -28,7 +28,7 @@ function addDaysIso(days: number) {
 // SECTION: API
 type TerritoryApi = {
   state: TerritoryState;
-
+  assignAddress: (input: { addressId: string; agentId: string }) => void;
   getAddress: (addressId: string) => Address | undefined;
   getVisitsForAddress: (addressId: string) => VisitLog[];
   getActiveCycleForAddress: (addressId: string) => PreviewCycle | undefined;
@@ -91,7 +91,19 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
   const api = useMemo<TerritoryApi>(() => {
     return {
       state,
-
+      assignAddress(input) {
+        setState((prev) => ({
+          ...prev,
+          addresses: prev.addresses.map((a) => {
+            if (a.id !== input.addressId) return a;
+            return {
+              ...a,
+              assignedAgentId: input.agentId,
+              updatedAt: nowIso(),
+            };
+          }),
+        }));
+      },
       getAddress(addressId) {
         return state.addresses.find((a) => a.id === addressId);
       },
@@ -136,6 +148,7 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
           zip: input.zip.trim(),
           status: "new",
           createdAt: nowIso(),
+          assignedAgentId: "agent-1",
           updatedAt: nowIso(),
         };
 

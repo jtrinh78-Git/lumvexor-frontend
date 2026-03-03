@@ -17,7 +17,8 @@ export function ProjectOverview() {
 
   // MVP: stable agent id (later: auth)
   const agentId = "agent-1";
-
+  const isAssigned = !!address?.assignedAgentId && address.assignedAgentId === agentId;
+  
   const [outcome, setOutcome] = useState<VisitOutcome>("owner_unavailable");
   const [notes, setNotes] = useState("");
 
@@ -66,6 +67,21 @@ export function ProjectOverview() {
           <ul className="lvx-list">
             <li>
               Address: <strong>{address?.businessName ?? addressId}</strong>
+              <li>
+  Assigned Agent:{" "}
+  <span className="lvx-muted">
+    {address?.assignedAgentId ?? "—"}
+  </span>
+</li>
+
+<li>
+  Access:{" "}
+  {isAssigned ? (
+    <Badge variant="accent">assigned</Badge>
+  ) : (
+    <Badge variant="neutral">not assigned</Badge>
+  )}
+</li>
             </li>
             <li>
               Cycle:{" "}

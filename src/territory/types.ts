@@ -26,7 +26,7 @@ export type Address = {
   lastVisitAt?: string;
   lastAgentId?: string;
   cooldownUntil?: string;
-
+  assignedAgentId?: string;
   createdAt: string;
   updatedAt: string;
 };
