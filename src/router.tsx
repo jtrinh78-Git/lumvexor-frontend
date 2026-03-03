@@ -5,7 +5,7 @@ import { AppLayout } from "./layouts/AppLayout";
 
 import { Landing } from "./pages/Landing";
 import { NotFound } from "./pages/NotFound";
-
+import { AdminUsers } from "./pages/app/AdminUsers";
 import { AppHome } from "./pages/app/AppHome";
 import { AppProjects } from "./pages/app/AppProjects";
 import { AppSettings } from "./pages/app/AppSettings";
@@ -28,6 +28,7 @@ export const router = createBrowserRouter([
         path: "app",
         element: <AppLayout />,
         children: [
+          { path: "admin/users", element: <AdminUsers /> },
           { index: true, element: <AppHome /> },
           { path: "projects", element: <AppProjects /> },
           { path: "settings", element: <AppSettings /> },
