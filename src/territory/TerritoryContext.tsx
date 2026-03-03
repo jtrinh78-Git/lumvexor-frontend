@@ -30,7 +30,8 @@ type TerritoryApi = {
   state: TerritoryState;
     getAssetsForCycle: (previewCycleId: string) => PreviewAsset[];
 
-  createPreviewAsset: (input: {
+    getPrintsForCycle: (previewCycleId: string) => PrintLog[];
+    createPreviewAsset: (input: {
     addressId: string;
     previewCycleId: string;
     agentId: string;
@@ -90,6 +91,12 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
     return {
       state,
 
+            getPrintsForCycle(previewCycleId) {
+        return state.printLogs
+          .filter((p) => p.previewCycleId === previewCycleId)
+          .slice()
+          .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      },
       getAddress(addressId) {
         return state.addresses.find((a) => a.id === addressId);
       },
