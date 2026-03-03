@@ -1,7 +1,17 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import type { Address, AddressStatus, PreviewCycle, TerritoryState, VisitLog, VisitOutcome, PrintLog } from "./types";
-import { loadTerritoryState, saveTerritoryState } from "./storage";
 
+import { loadTerritoryState, saveTerritoryState } from "./storage";
+import type {
+  Address,
+  AddressStatus,
+  PreviewCycle,
+  TerritoryState,
+  VisitLog,
+  VisitOutcome,
+  PrintLog,
+  PreviewAsset,
+  PreviewAssetKind,
+} from "./types";
 // SECTION: helpers
 function nowIso() {
   return new Date().toISOString();
@@ -18,6 +28,14 @@ function addDaysIso(days: number) {
 // SECTION: API
 type TerritoryApi = {
   state: TerritoryState;
+    getAssetsForCycle: (previewCycleId: string) => PreviewAsset[];
+
+  createPreviewAsset: (input: {
+    addressId: string;
+    previewCycleId: string;
+    agentId: string;
+    kind: PreviewAssetKind;
+  }) => PreviewAsset | undefined;
 
   getAddress: (addressId: string) => Address | undefined;
   getVisitsForAddress: (addressId: string) => VisitLog[];
@@ -76,6 +94,49 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
         return state.addresses.find((a) => a.id === addressId);
       },
 
+            getAssetsForCycle(previewCycleId) {
+        return state.previewAssets
+          .filter((a) => a.previewCycleId === previewCycleId)
+          .slice()
+          .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      },
+
+      createPreviewAsset(input) {
+        const cycle = state.previewCycles.find((c) => c.id === input.previewCycleId);
+        if (!cycle) return undefined;
+
+        // Enforce 3 previews per cycle (discipline)
+        if (cycle.previewCount >= 3) return undefined;
+
+        const created: PreviewAsset = {
+          id: id("asset"),
+          addressId: input.addressId,
+          previewCycleId: input.previewCycleId,
+          agentId: input.agentId,
+          kind: input.kind,
+
+          // Watermarked demo reference (local stub)
+          watermarkedRef: `wm://${input.addressId}/${input.previewCycleId}/${input.kind}/${Date.now()}`,
+
+          // Clean recipe reference (server-side later)
+          cleanRecipeRef: `recipe://${input.addressId}/${input.previewCycleId}/${input.kind}`,
+
+          cleanUnlocked: false,
+          createdAt: nowIso(),
+        };
+
+        setState((prev) => ({
+          ...prev,
+          previewAssets: [created, ...prev.previewAssets],
+          previewCycles: prev.previewCycles.map((c) => {
+            if (c.id !== input.previewCycleId) return c;
+            if (c.previewCount >= 3) return c;
+            return { ...c, previewCount: c.previewCount + 1 };
+          }),
+        }));
+
+        return created;
+      },
       getVisitsForAddress(addressId) {
         return state.visits
           .filter((v) => v.addressId === addressId)
@@ -110,6 +171,7 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
           addresses: [created, ...prev.addresses],
         }));
 
+        
         return created;
       },
 

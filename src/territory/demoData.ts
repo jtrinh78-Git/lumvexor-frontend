@@ -46,4 +46,5 @@ export const DEMO_TERRITORY_STATE: TerritoryState = {
   visits: [],
   previewCycles: [],
   printLogs: [],
+  previewAssets: [],
 };

@@ -1,4 +1,4 @@
-// SECTION: Types
+// SECTION: Address + Visits
 export type AddressStatus =
   | "new"
   | "contacted"
@@ -25,7 +25,6 @@ export type Address = {
 
   lastVisitAt?: string;
   lastAgentId?: string;
-
   cooldownUntil?: string;
 
   createdAt: string;
@@ -41,6 +40,7 @@ export type VisitLog = {
   createdAt: string;
 };
 
+// SECTION: Preview Cycles + Prints
 export type PreviewCycle = {
   id: string;
   addressId: string;
@@ -61,9 +61,34 @@ export type PrintLog = {
   createdAt: string;
 };
 
+// SECTION: Preview Assets (Watermarked + Clean Recipe)
+export type PreviewAssetKind = "post" | "flyer" | "before_after";
+
+export type PreviewAsset = {
+  id: string;
+  addressId: string;
+  previewCycleId: string;
+  agentId: string;
+
+  kind: PreviewAssetKind;
+
+  // demo-only (safe to show/print)
+  watermarkedRef: string;
+
+  // server-side later (clean rendering instructions)
+  cleanRecipeRef: string;
+
+  // locked until payment
+  cleanUnlocked: boolean;
+
+  createdAt: string;
+};
+
+// SECTION: Territory State
 export type TerritoryState = {
   addresses: Address[];
   visits: VisitLog[];
   previewCycles: PreviewCycle[];
   printLogs: PrintLog[];
+  previewAssets: PreviewAsset[];
 };
