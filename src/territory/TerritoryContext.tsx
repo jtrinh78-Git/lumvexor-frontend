@@ -17,9 +17,7 @@ function getSupabase(): SupabaseClient {
   const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
   const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-  if (!url || !anon) {
-    throw new Error("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY");
-  }
+  if (!url || !anon) throw new Error("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY");
 
   return createClient(url, anon);
 }
@@ -31,8 +29,9 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function id(prefix: string) {
-  return `${prefix}_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
+function uuid() {
+  // Browser-safe UUID generator (matches uuid column type)
+  return crypto.randomUUID();
 }
 
 function addDaysIso(days: number) {
@@ -47,7 +46,7 @@ const EMPTY_STATE: TerritoryState = {
   printLogs: [],
 };
 
-// SECTION: DB mappers (snake_case <-> camelCase)
+// SECTION: DB mappers (snake_case -> camelCase)
 function mapAddressRow(r: any): Address {
   return {
     id: r.id,
@@ -57,16 +56,17 @@ function mapAddressRow(r: any): Address {
     state: r.state,
     zip: r.zip,
     status: r.status,
-    createdAt: r.created_at,
-    updatedAt: r.updated_at,
     assignedAgentId: r.assigned_agent_id ?? undefined,
     lastVisitAt: r.last_visit_at ?? undefined,
     lastAgentId: r.last_agent_id ?? undefined,
     cooldownUntil: r.cooldown_until ?? undefined,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
   };
 }
 
 function mapVisitRow(r: any): VisitLog {
+  // Assumption: territory_visits has outcome, notes, created_at
   return {
     id: r.id,
     addressId: r.address_id,
@@ -109,7 +109,8 @@ function mapPrintRow(r: any): PrintLog {
     addressId: r.address_id,
     previewCycleId: r.preview_cycle_id,
     agentId: r.agent_id,
-    printCost: r.print_cost ?? 0,
+    // numeric in Postgres may arrive as string depending on client settings
+    printCost: typeof r.print_cost === "number" ? r.print_cost : Number(r.print_cost ?? 0),
     reprint: !!r.reprint,
     createdAt: r.created_at,
   };
@@ -119,13 +120,14 @@ function mapPrintRow(r: any): PrintLog {
 async function resolveOrgId(): Promise<string> {
   const { data: userRes, error: userErr } = await supabase.auth.getUser();
   if (userErr) throw userErr;
+
   const userId = userRes.user?.id;
   if (!userId) throw new Error("Not authenticated");
 
   const { data, error } = await supabase
     .from("profiles")
     .select("active_org_id")
-    .eq("id", userId)
+    .eq("user_id", userId)
     .single();
 
   if (error) throw error;
@@ -134,6 +136,14 @@ async function resolveOrgId(): Promise<string> {
   if (!orgId) throw new Error("No active_org_id set for this user");
 
   return orgId;
+}
+
+async function resolveUserId(): Promise<string> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error) throw error;
+  const id = data.user?.id;
+  if (!id) throw new Error("Not authenticated");
+  return id;
 }
 
 // SECTION: API
@@ -196,7 +206,6 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
   const [state, setState] = useState<TerritoryState>(EMPTY_STATE);
 
   const orgIdRef = useRef<string | null>(null);
-  const hydratedRef = useRef(false);
 
   async function ensureOrgId(): Promise<string> {
     if (orgIdRef.current) return orgIdRef.current;
@@ -228,11 +237,8 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
         previewAssets: (assetRes.data ?? []).map(mapAssetRow),
         printLogs: (printRes.data ?? []).map(mapPrintRow),
       });
-
-      hydratedRef.current = true;
     } catch (e) {
       console.error("Territory hydrate failed:", e);
-      // Keep UI running with whatever local in-memory state exists.
     }
   }
 
@@ -304,17 +310,18 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
       },
 
       createAddress(input) {
+        const createdAt = nowIso();
         const created: Address = {
-          id: id("addr"),
+          id: uuid(),
           businessName: input.businessName.trim(),
           street: input.street.trim(),
           city: input.city.trim(),
           state: input.state.trim(),
           zip: input.zip.trim(),
           status: "new",
-          createdAt: nowIso(),
-          assignedAgentId: "agent-1",
-          updatedAt: nowIso(),
+          createdAt,
+          updatedAt: createdAt,
+          assignedAgentId: undefined,
         };
 
         setState((prev) => ({ ...prev, addresses: [created, ...prev.addresses] }));
@@ -322,6 +329,8 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
         (async () => {
           try {
             const orgId = await ensureOrgId();
+            const actorId = await resolveUserId();
+
             const { error } = await supabase.from("territory_addresses").insert({
               id: created.id,
               org_id: orgId,
@@ -331,11 +340,19 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
               state: created.state,
               zip: created.zip,
               status: created.status,
-              assigned_agent_id: created.assignedAgentId,
-              created_at: created.createdAt,
-              updated_at: created.updatedAt,
+              assigned_agent_id: actorId, // sane default for multi-agent
+              created_at: createdAt,
+              updated_at: createdAt,
             });
             if (error) throw error;
+
+            // reflect assigned_agent_id from DB default choice
+            setState((prev) => ({
+              ...prev,
+              addresses: prev.addresses.map((a) =>
+                a.id === created.id ? { ...a, assignedAgentId: actorId } : a
+              ),
+            }));
           } catch (e) {
             console.error("createAddress sync failed:", e);
           }
@@ -345,13 +362,14 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
       },
 
       logVisit(input) {
+        const createdAt = nowIso();
         const created: VisitLog = {
-          id: id("visit"),
+          id: uuid(),
           addressId: input.addressId,
           agentId: input.agentId,
           outcome: input.outcome,
           notes: input.notes?.trim() || undefined,
-          createdAt: nowIso(),
+          createdAt,
         };
 
         const statusMap: Record<VisitOutcome, AddressStatus> = {
@@ -364,6 +382,7 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
 
         const cooldownDays = input.cooldownDays ?? (input.outcome === "declined" ? 30 : 14);
         const cooldownUntil = addDaysIso(cooldownDays);
+        const updatedAt = nowIso();
 
         setState((prev) => ({
           ...prev,
@@ -373,10 +392,10 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
             return {
               ...a,
               status: statusMap[input.outcome],
-              lastVisitAt: created.createdAt,
+              lastVisitAt: createdAt,
               lastAgentId: input.agentId,
               cooldownUntil,
-              updatedAt: nowIso(),
+              updatedAt,
             };
           }),
         }));
@@ -385,6 +404,7 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
           try {
             const orgId = await ensureOrgId();
 
+            // Assumption: territory_visits columns include outcome, notes, created_at
             const { error: visitErr } = await supabase.from("territory_visits").insert({
               id: created.id,
               org_id: orgId,
@@ -392,7 +412,7 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
               agent_id: created.agentId,
               outcome: created.outcome,
               notes: created.notes ?? null,
-              created_at: created.createdAt,
+              created_at: createdAt,
             });
             if (visitErr) throw visitErr;
 
@@ -400,10 +420,10 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
               .from("territory_addresses")
               .update({
                 status: statusMap[input.outcome],
-                last_visit_at: created.createdAt,
+                last_visit_at: createdAt,
                 last_agent_id: input.agentId,
                 cooldown_until: cooldownUntil,
-                updated_at: nowIso(),
+                updated_at: updatedAt,
               })
               .eq("org_id", orgId)
               .eq("id", input.addressId);
@@ -419,14 +439,15 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
       startPreviewCycle(input) {
         const expiresInHours = input.expiresInHours ?? 48;
 
+        const createdAt = nowIso();
         const created: PreviewCycle = {
-          id: id("cycle"),
+          id: uuid(),
           addressId: input.addressId,
           agentId: input.agentId,
           previewCount: 0,
           expiresAt: new Date(Date.now() + expiresInHours * 60 * 60 * 1000).toISOString(),
           isArchived: false,
-          createdAt: nowIso(),
+          createdAt,
         };
 
         setState((prev) => ({ ...prev, previewCycles: [created, ...prev.previewCycles] }));
@@ -442,7 +463,7 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
               preview_count: created.previewCount,
               expires_at: created.expiresAt,
               is_archived: created.isArchived,
-              created_at: created.createdAt,
+              created_at: createdAt,
             });
             if (error) throw error;
           } catch (e) {
@@ -463,6 +484,7 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
             updated = { ...c, previewCount: c.previewCount + 1 };
             return updated;
           });
+
           return { ...prev, previewCycles: nextCycles };
         });
 
@@ -492,8 +514,9 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
         // Enforce 3 previews per cycle (discipline)
         if (cycle.previewCount >= 3) return undefined;
 
+        const createdAt = nowIso();
         const created: PreviewAsset = {
-          id: id("asset"),
+          id: uuid(),
           addressId: input.addressId,
           previewCycleId: input.previewCycleId,
           agentId: input.agentId,
@@ -503,7 +526,7 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
           cleanRecipeRef: `recipe://${input.addressId}/${input.previewCycleId}/${input.kind}`,
           cleanUnlocked: false,
 
-          createdAt: nowIso(),
+          createdAt,
         };
 
         setState((prev) => ({
@@ -530,7 +553,7 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
               watermarked_ref: created.watermarkedRef,
               clean_recipe_ref: created.cleanRecipeRef,
               clean_unlocked: created.cleanUnlocked,
-              created_at: created.createdAt,
+              created_at: createdAt,
             });
             if (assetErr) throw assetErr;
 
@@ -551,14 +574,15 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
       },
 
       logPrint(input) {
+        const createdAt = nowIso();
         const created: PrintLog = {
-          id: id("print"),
+          id: uuid(),
           addressId: input.addressId,
           previewCycleId: input.previewCycleId,
           agentId: input.agentId,
           printCost: input.printCost ?? 6,
           reprint: input.reprint ?? false,
-          createdAt: nowIso(),
+          createdAt,
         };
 
         setState((prev) => ({ ...prev, printLogs: [created, ...prev.printLogs] }));
@@ -574,7 +598,7 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
               agent_id: created.agentId,
               print_cost: created.printCost,
               reprint: created.reprint,
-              created_at: created.createdAt,
+              created_at: createdAt,
             });
             if (error) throw error;
           } catch (e) {
@@ -586,13 +610,10 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
       },
 
       resetDemo() {
-        // Phase 5 goal says: remove demo reset or make admin-only.
-        // For now: local-only reset + re-hydrate (does NOT delete org data).
+        // Phase 5 direction: demo reset should NOT delete org data.
+        // For now: local reset + rehydrate.
         setState(EMPTY_STATE);
-
-        if (hydratedRef.current) {
-          hydrateFromSupabase();
-        }
+        hydrateFromSupabase();
       },
     };
   }, [state]);
