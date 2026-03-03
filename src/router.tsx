@@ -2,7 +2,7 @@ import { createBrowserRouter } from "react-router-dom";
 
 import { RootLayout } from "./layouts/RootLayout";
 import { AppLayout } from "./layouts/AppLayout";
-
+import { RequireRole } from "./components/RequireRole";
 import { Landing } from "./pages/Landing";
 import { NotFound } from "./pages/NotFound";
 import { AdminUsers } from "./pages/app/AdminUsers";
@@ -28,10 +28,24 @@ export const router = createBrowserRouter([
         path: "app",
         element: <AppLayout />,
         children: [
-          { path: "admin/users", element: <AdminUsers /> },
+          {
+  path: "admin/users",
+  element: (
+    <RequireRole roles={["admin"]}>
+      <AdminUsers />
+    </RequireRole>
+  ),
+},
           { index: true, element: <AppHome /> },
           { path: "projects", element: <AppProjects /> },
-          { path: "performance", element: <Performance /> },
+          {
+  path: "performance",
+  element: (
+    <RequireRole roles={["admin", "manager"]}>
+      <Performance />
+    </RequireRole>
+  ),
+},
           { path: "settings", element: <AppSettings /> },
 
           {
