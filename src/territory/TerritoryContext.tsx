@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../auth/AuthProvider";
 import type {
   Address,
   AddressStatus,
@@ -104,14 +105,10 @@ function mapPrintRow(r: any): PrintLog {
   };
 }
 
-// SECTION: org resolver
-async function resolveOrgId(): Promise<string> {
-  const { data: userRes, error: userErr } = await supabase.auth.getUser();
-  if (userErr) throw userErr;
 
-  const userId = userRes.user?.id;
-  if (!userId) throw new Error("Not authenticated");
 
+// SECTION: org resolver (session-authoritative)
+async function resolveOrgIdForUser(userId: string): Promise<string> {
   const { data, error } = await supabase
     .from("profiles")
     .select("active_org_id")
@@ -125,15 +122,6 @@ async function resolveOrgId(): Promise<string> {
 
   return orgId;
 }
-
-async function resolveUserId(): Promise<string> {
-  const { data, error } = await supabase.auth.getUser();
-  if (error) throw error;
-  const id = data.user?.id;
-  if (!id) throw new Error("Not authenticated");
-  return id;
-}
-
 // SECTION: API
 type TerritoryApi = {
   state: TerritoryState;
@@ -193,14 +181,18 @@ const TerritoryContext = createContext<TerritoryApi | null>(null);
 export function TerritoryProvider(props: { children: React.ReactNode }) {
   const [state, setState] = useState<TerritoryState>(EMPTY_STATE);
 
+   const { session, loading: authLoading } = useAuth();
+  const userId = session?.user?.id ?? null;
   const orgIdRef = useRef<string | null>(null);
-
   async function ensureOrgId(): Promise<string> {
+    if (!userId) throw new Error("Not authenticated");
     if (orgIdRef.current) return orgIdRef.current;
-    const orgId = await resolveOrgId();
+
+    const orgId = await resolveOrgIdForUser(userId);
     orgIdRef.current = orgId;
     return orgId;
   }
+  
 
   async function hydrateFromSupabase() {
     try {
@@ -230,10 +222,20 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
     }
   }
 
-  useEffect(() => {
+    useEffect(() => {
+    if (authLoading) return;
+
+    // Logged out: clear cached org + reset state and do nothing.
+    if (!userId) {
+      orgIdRef.current = null;
+      setState(EMPTY_STATE);
+      return;
+    }
+
+    // Logged in: hydrate after session is confirmed.
     hydrateFromSupabase();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authLoading, userId]);
 
   const api = useMemo<TerritoryApi>(() => {
     return {
@@ -317,7 +319,8 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
         (async () => {
           try {
             const orgId = await ensureOrgId();
-            const actorId = await resolveUserId();
+            if (!userId) throw new Error("Not authenticated");
+            const actorId = userId;
 
             const { error } = await supabase.from("territory_addresses").insert({
               id: created.id,
