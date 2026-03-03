@@ -32,10 +32,11 @@ export function AppLayout() {
 
   const navItems = useMemo(() => {
     const base = [
-      { to: "/app", label: "Dashboard", end: true as const },
-      { to: "/app/projects", label: "Projects" },
-      { to: "/app/settings", label: "Settings" },
-    ];
+  { to: "/app", label: "Dashboard", end: true as const },
+  { to: "/app/projects", label: "Projects" },
+  ...(isAdminAccess ? [{ to: "/app/performance", label: "Performance" }] : []),
+  { to: "/app/settings", label: "Settings" },
+];
 
     if (isAdminAccess) {
       base.push({ to: "/app/admin/users", label: "Admin" });

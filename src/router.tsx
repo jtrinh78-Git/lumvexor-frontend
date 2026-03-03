@@ -16,7 +16,7 @@ import { ProjectPreviews } from "./pages/app/project/ProjectPreviews";
 import { ProjectAssets } from "./pages/app/project/ProjectAssets";
 import { ProjectPublishing } from "./pages/app/project/ProjectPublishing";
 import { ProjectSettings } from "./pages/app/project/ProjectSettings";
-
+import Performance from "./pages/app/Performance";
 // SECTION: router
 export const router = createBrowserRouter([
   {
@@ -31,6 +31,7 @@ export const router = createBrowserRouter([
           { path: "admin/users", element: <AdminUsers /> },
           { index: true, element: <AppHome /> },
           { path: "projects", element: <AppProjects /> },
+          { path: "performance", element: <Performance /> },
           { path: "settings", element: <AppSettings /> },
 
           {
