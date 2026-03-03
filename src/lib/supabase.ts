@@ -14,3 +14,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 // SECTION: Client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// SECTION: dev exposure
+if (import.meta.env.DEV) {
+  (window as any).supabase = supabase;
+}

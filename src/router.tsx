@@ -3,6 +3,10 @@ import { createBrowserRouter } from "react-router-dom";
 import { RootLayout } from "./layouts/RootLayout";
 import { AppLayout } from "./layouts/AppLayout";
 import { RequireRole } from "./components/RequireRole";
+
+import { RequireSession } from "./auth/RequireSession";
+import LoginPage from "./pages/Login";
+
 import { Landing } from "./pages/Landing";
 import { NotFound } from "./pages/NotFound";
 import { AdminUsers } from "./pages/app/AdminUsers";
@@ -17,6 +21,7 @@ import { ProjectAssets } from "./pages/app/project/ProjectAssets";
 import { ProjectPublishing } from "./pages/app/project/ProjectPublishing";
 import { ProjectSettings } from "./pages/app/project/ProjectSettings";
 import Performance from "./pages/app/Performance";
+
 // SECTION: router
 export const router = createBrowserRouter([
   {
@@ -24,43 +29,51 @@ export const router = createBrowserRouter([
     element: <RootLayout />,
     children: [
       { index: true, element: <Landing /> },
+      { path: "login", element: <LoginPage /> },
+
       {
-        path: "app",
-        element: <AppLayout />,
+        element: <RequireSession />,
         children: [
           {
-  path: "admin/users",
-  element: (
-    <RequireRole roles={["admin"]}>
-      <AdminUsers />
-    </RequireRole>
-  ),
-},
-          { index: true, element: <AppHome /> },
-          { path: "projects", element: <AppProjects /> },
-          {
-  path: "performance",
-  element: (
-    <RequireRole roles={["admin", "manager"]}>
-      <Performance />
-    </RequireRole>
-  ),
-},
-          { path: "settings", element: <AppSettings /> },
-
-          {
-            path: "projects/:projectId",
-            element: <ProjectLayout />,
+            path: "app",
+            element: <AppLayout />,
             children: [
-              { index: true, element: <ProjectOverview /> },
-              { path: "previews", element: <ProjectPreviews /> },
-              { path: "assets", element: <ProjectAssets /> },
-              { path: "publishing", element: <ProjectPublishing /> },
-              { path: "settings", element: <ProjectSettings /> },
+              {
+                path: "admin/users",
+                element: (
+                  <RequireRole roles={["admin"]}>
+                    <AdminUsers />
+                  </RequireRole>
+                ),
+              },
+              { index: true, element: <AppHome /> },
+              { path: "projects", element: <AppProjects /> },
+              {
+                path: "performance",
+                element: (
+                  <RequireRole roles={["admin", "manager"]}>
+                    <Performance />
+                  </RequireRole>
+                ),
+              },
+              { path: "settings", element: <AppSettings /> },
+
+              {
+                path: "projects/:projectId",
+                element: <ProjectLayout />,
+                children: [
+                  { index: true, element: <ProjectOverview /> },
+                  { path: "previews", element: <ProjectPreviews /> },
+                  { path: "assets", element: <ProjectAssets /> },
+                  { path: "publishing", element: <ProjectPublishing /> },
+                  { path: "settings", element: <ProjectSettings /> },
+                ],
+              },
             ],
           },
         ],
       },
+
       { path: "*", element: <NotFound /> },
     ],
   },

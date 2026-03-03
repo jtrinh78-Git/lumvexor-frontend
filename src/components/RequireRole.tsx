@@ -1,16 +1,13 @@
 import { Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "../lib/supabase";
 
 type RequireRoleProps = {
   roles: string[];
   children: React.ReactNode;
 };
 
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL!,
-  import.meta.env.VITE_SUPABASE_ANON_KEY!
-);
+
 
 export function RequireRole({ roles, children }: RequireRoleProps) {
   const [loading, setLoading] = useState(true);

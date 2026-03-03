@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "../../lib/supabase";
 
 type MetricRow = {
   org_id: string;
@@ -25,26 +25,21 @@ type MetricRow = {
   active_clients: number;
 };
 
-function getSupabase() {
-  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-  const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-  if (!url || !anon) throw new Error("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY");
-  return createClient(url, anon);
-}
-
-const supabase = getSupabase();
-
+// SECTION: Performance
 export default function Performance() {
   const [rows, setRows] = useState<MetricRow[]>([]);
   const [range, setRange] = useState<"7d" | "30d">("7d");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+
     (async () => {
       setError(null);
       try {
         const { data: userRes, error: userErr } = await supabase.auth.getUser();
         if (userErr) throw userErr;
+
         const userId = userRes.user?.id;
         if (!userId) throw new Error("Not authenticated");
 
@@ -69,11 +64,17 @@ export default function Performance() {
 
         if (viewErr) throw viewErr;
 
+        if (!mounted) return;
         setRows((data ?? []) as MetricRow[]);
       } catch (e: any) {
+        if (!mounted) return;
         setError(e?.message ?? "Failed to load metrics");
       }
     })();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const leaderboard = useMemo(() => {
@@ -176,11 +177,21 @@ export default function Performance() {
                 </div>
 
                 <div className="flex gap-6 text-sm">
-                  <div>Visits: <span className="font-semibold">{visits}</span></div>
-                  <div>Close: <span className="font-semibold">{rate}%</span></div>
-                  <div>Previews: <span className="font-semibold">{previews}</span></div>
-                  <div>Prints: <span className="font-semibold">{prints}</span></div>
-                  <div>Cost: <span className="font-semibold">${Number(cost).toFixed(2)}</span></div>
+                  <div>
+                    Visits: <span className="font-semibold">{visits}</span>
+                  </div>
+                  <div>
+                    Close: <span className="font-semibold">{rate}%</span>
+                  </div>
+                  <div>
+                    Previews: <span className="font-semibold">{previews}</span>
+                  </div>
+                  <div>
+                    Prints: <span className="font-semibold">{prints}</span>
+                  </div>
+                  <div>
+                    Cost: <span className="font-semibold">${Number(cost).toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
             );

@@ -18,13 +18,22 @@ export function AppLayout() {
         return;
       }
 
-      const { data } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("user_id", uid)
-        .single();
+      const { data, error } = await supabase
+  .from("profiles")
+  .select("role")
+  .eq("user_id", uid)
+  .single();
 
-      setRole((data?.role as AppRole) || "agent");
+console.log("PROFILE QUERY RESULT:", { data, error });
+
+if (error) {
+  console.error("Profile fetch error:", error);
+  setRole("agent");
+} else if (data?.role) {
+  setRole(data.role as AppRole);
+} else {
+  setRole("agent");
+}
     })();
   }, []);
 
