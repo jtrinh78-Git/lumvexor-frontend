@@ -1,5 +1,4 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-
 import { loadTerritoryState, saveTerritoryState } from "./storage";
 import type {
   Address,
@@ -12,6 +11,7 @@ import type {
   PreviewAsset,
   PreviewAssetKind,
 } from "./types";
+
 // SECTION: helpers
 function nowIso() {
   return new Date().toISOString();
@@ -28,19 +28,13 @@ function addDaysIso(days: number) {
 // SECTION: API
 type TerritoryApi = {
   state: TerritoryState;
-    getAssetsForCycle: (previewCycleId: string) => PreviewAsset[];
-
-    getPrintsForCycle: (previewCycleId: string) => PrintLog[];
-    createPreviewAsset: (input: {
-    addressId: string;
-    previewCycleId: string;
-    agentId: string;
-    kind: PreviewAssetKind;
-  }) => PreviewAsset | undefined;
 
   getAddress: (addressId: string) => Address | undefined;
   getVisitsForAddress: (addressId: string) => VisitLog[];
   getActiveCycleForAddress: (addressId: string) => PreviewCycle | undefined;
+
+  getAssetsForCycle: (previewCycleId: string) => PreviewAsset[];
+  getPrintsForCycle: (previewCycleId: string) => PrintLog[];
 
   createAddress: (input: {
     businessName: string;
@@ -65,6 +59,13 @@ type TerritoryApi = {
   }) => PreviewCycle;
 
   incrementPreviewCount: (cycleId: string) => PreviewCycle | undefined;
+
+  createPreviewAsset: (input: {
+    addressId: string;
+    previewCycleId: string;
+    agentId: string;
+    kind: PreviewAssetKind;
+  }) => PreviewAsset | undefined;
 
   logPrint: (input: {
     addressId: string;
@@ -91,59 +92,10 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
     return {
       state,
 
-            getPrintsForCycle(previewCycleId) {
-        return state.printLogs
-          .filter((p) => p.previewCycleId === previewCycleId)
-          .slice()
-          .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-      },
       getAddress(addressId) {
         return state.addresses.find((a) => a.id === addressId);
       },
 
-            getAssetsForCycle(previewCycleId) {
-        return state.previewAssets
-          .filter((a) => a.previewCycleId === previewCycleId)
-          .slice()
-          .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-      },
-
-      createPreviewAsset(input) {
-        const cycle = state.previewCycles.find((c) => c.id === input.previewCycleId);
-        if (!cycle) return undefined;
-
-        // Enforce 3 previews per cycle (discipline)
-        if (cycle.previewCount >= 3) return undefined;
-
-        const created: PreviewAsset = {
-          id: id("asset"),
-          addressId: input.addressId,
-          previewCycleId: input.previewCycleId,
-          agentId: input.agentId,
-          kind: input.kind,
-
-          // Watermarked demo reference (local stub)
-          watermarkedRef: `wm://${input.addressId}/${input.previewCycleId}/${input.kind}/${Date.now()}`,
-
-          // Clean recipe reference (server-side later)
-          cleanRecipeRef: `recipe://${input.addressId}/${input.previewCycleId}/${input.kind}`,
-
-          cleanUnlocked: false,
-          createdAt: nowIso(),
-        };
-
-        setState((prev) => ({
-          ...prev,
-          previewAssets: [created, ...prev.previewAssets],
-          previewCycles: prev.previewCycles.map((c) => {
-            if (c.id !== input.previewCycleId) return c;
-            if (c.previewCount >= 3) return c;
-            return { ...c, previewCount: c.previewCount + 1 };
-          }),
-        }));
-
-        return created;
-      },
       getVisitsForAddress(addressId) {
         return state.visits
           .filter((v) => v.addressId === addressId)
@@ -158,6 +110,20 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
           .filter((c) => new Date(c.expiresAt).getTime() > now)
           .slice()
           .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
+      },
+
+      getAssetsForCycle(previewCycleId) {
+        return state.previewAssets
+          .filter((a) => a.previewCycleId === previewCycleId)
+          .slice()
+          .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      },
+
+      getPrintsForCycle(previewCycleId) {
+        return state.printLogs
+          .filter((p) => p.previewCycleId === previewCycleId)
+          .slice()
+          .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
       },
 
       createAddress(input) {
@@ -178,7 +144,6 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
           addresses: [created, ...prev.addresses],
         }));
 
-        
         return created;
       },
 
@@ -200,7 +165,8 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
           closed: "active_client",
         };
 
-        const cooldownDays = input.cooldownDays ?? (input.outcome === "declined" ? 30 : 14);
+        const cooldownDays =
+          input.cooldownDays ?? (input.outcome === "declined" ? 30 : 14);
         const cooldownUntil = addDaysIso(cooldownDays);
 
         setState((prev) => ({
@@ -230,7 +196,9 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
           addressId: input.addressId,
           agentId: input.agentId,
           previewCount: 0,
-          expiresAt: new Date(Date.now() + expiresInHours * 60 * 60 * 1000).toISOString(),
+          expiresAt: new Date(
+            Date.now() + expiresInHours * 60 * 60 * 1000
+          ).toISOString(),
           isArchived: false,
           createdAt: nowIso(),
         };
@@ -260,6 +228,40 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
         return updated;
       },
 
+      createPreviewAsset(input) {
+        const cycle = state.previewCycles.find((c) => c.id === input.previewCycleId);
+        if (!cycle) return undefined;
+
+        // Enforce 3 previews per cycle (discipline)
+        if (cycle.previewCount >= 3) return undefined;
+
+        const created: PreviewAsset = {
+          id: id("asset"),
+          addressId: input.addressId,
+          previewCycleId: input.previewCycleId,
+          agentId: input.agentId,
+          kind: input.kind,
+
+          watermarkedRef: `wm://${input.addressId}/${input.previewCycleId}/${input.kind}/${Date.now()}`,
+          cleanRecipeRef: `recipe://${input.addressId}/${input.previewCycleId}/${input.kind}`,
+          cleanUnlocked: false,
+
+          createdAt: nowIso(),
+        };
+
+        setState((prev) => ({
+          ...prev,
+          previewAssets: [created, ...prev.previewAssets],
+          previewCycles: prev.previewCycles.map((c) => {
+            if (c.id !== input.previewCycleId) return c;
+            if (c.previewCount >= 3) return c;
+            return { ...c, previewCount: c.previewCount + 1 };
+          }),
+        }));
+
+        return created;
+      },
+
       logPrint(input) {
         const created: PrintLog = {
           id: id("print"),
@@ -286,7 +288,11 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
     };
   }, [state]);
 
-  return <TerritoryContext.Provider value={api}>{props.children}</TerritoryContext.Provider>;
+  return (
+    <TerritoryContext.Provider value={api}>
+      {props.children}
+    </TerritoryContext.Provider>
+  );
 }
 
 // SECTION: Hook
