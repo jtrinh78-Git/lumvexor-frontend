@@ -65,54 +65,55 @@ export function ProjectOverview() {
         <CardTitle>Workspace Status</CardTitle>
         <CardBody>
           <ul className="lvx-list">
-            <li>
-              Address: <strong>{address?.businessName ?? addressId}</strong>
-              <li>
-  Assigned Agent:{" "}
-  <span className="lvx-muted">
-    {address?.assignedAgentId ?? "—"}
-  </span>
-</li>
+  <li>
+    Address: <strong>{address?.businessName ?? addressId}</strong>
+  </li>
 
-<li>
-  Access:{" "}
-  {isAssigned ? (
-    <Badge variant="accent">assigned</Badge>
-  ) : (
-    <Badge variant="neutral">not assigned</Badge>
-  )}
-</li>
-            </li>
-            <li>
-              Cycle:{" "}
-              {activeCycle ? (
-                <>
-                  <strong>
-                    {activeCycle.previewCount}/3
-                  </strong>{" "}
-                  • Expires {new Date(activeCycle.expiresAt).toLocaleString()}
-                </>
-              ) : (
-                <span className="lvx-muted">No active preview cycle</span>
-              )}
-            </li>
-            <li>
-              Cooldown:{" "}
-              <span className={cooldownInfo.isActive ? "" : "lvx-muted"}>
-                {cooldownInfo.text}
-              </span>
-            </li>
-            <li>
-              Last Agent:{" "}
-              <span className="lvx-muted">{address?.lastAgentId ?? "—"}</span>
-            </li>
-            <li>
-              Last Visit:{" "}
-              <span className="lvx-muted">
-                {address?.lastVisitAt ? new Date(address.lastVisitAt).toLocaleString() : "—"}
-              </span>
-            </li>
-          </ul>
+  <li>
+    Assigned Agent:{" "}
+    <span className="lvx-muted">{address?.assignedAgentId ?? "—"}</span>
+  </li>
+
+  <li>
+    Access:{" "}
+    {isAssigned ? (
+      <Badge variant="accent">assigned</Badge>
+    ) : (
+      <Badge variant="neutral">not assigned</Badge>
+    )}
+  </li>
+
+  <li>
+    Cycle:{" "}
+    {activeCycle ? (
+      <>
+        <strong>{activeCycle.previewCount}/3</strong> • Expires{" "}
+        {new Date(activeCycle.expiresAt).toLocaleString()}
+      </>
+    ) : (
+      <span className="lvx-muted">No active preview cycle</span>
+    )}
+  </li>
+
+  <li>
+    Cooldown:{" "}
+    <span className={cooldownInfo.isActive ? "" : "lvx-muted"}>
+      {cooldownInfo.text}
+    </span>
+  </li>
+
+  <li>
+    Last Agent:{" "}
+    <span className="lvx-muted">{address?.lastAgentId ?? "—"}</span>
+  </li>
+
+  <li>
+    Last Visit:{" "}
+    <span className="lvx-muted">
+      {address?.lastVisitAt ? new Date(address.lastVisitAt).toLocaleString() : "—"}
+    </span>
+  </li>
+</ul>
         </CardBody>
       </Card>
 
