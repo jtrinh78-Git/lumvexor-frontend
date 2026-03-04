@@ -1,6 +1,9 @@
+// SECTION: Imports
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
+import { useProfile } from "../../auth/ProfileProvider";
 
+// SECTION: Types
 type MetricRow = {
   org_id: string;
   agent_id: string;
@@ -27,6 +30,8 @@ type MetricRow = {
 
 // SECTION: Performance
 export default function Performance() {
+  const p = useProfile();
+
   const [rows, setRows] = useState<MetricRow[]>([]);
   const [range, setRange] = useState<"7d" | "30d">("7d");
   const [error, setError] = useState<string | null>(null);
@@ -34,33 +39,14 @@ export default function Performance() {
   useEffect(() => {
     let mounted = true;
 
-    (async () => {
+    async function load(orgId: string) {
       setError(null);
+
       try {
-        const { data: userRes, error: userErr } = await supabase.auth.getUser();
-        if (userErr) throw userErr;
-
-        const userId = userRes.user?.id;
-        if (!userId) throw new Error("Not authenticated");
-
-        const { data: prof, error: profErr } = await supabase
-          .from("profiles")
-          .select("active_org_id, role")
-          .eq("user_id", userId)
-          .single();
-
-        if (profErr) throw profErr;
-        if (!prof?.active_org_id) throw new Error("No active org selected");
-
-        // Basic gate: manager/admin only
-        if (prof.role !== "manager" && prof.role !== "admin") {
-          throw new Error("Access denied: manager/admin only");
-        }
-
         const { data, error: viewErr } = await supabase
           .from("agent_metrics")
           .select("*")
-          .eq("org_id", prof.active_org_id);
+          .eq("org_id", orgId);
 
         if (viewErr) throw viewErr;
 
@@ -69,13 +55,26 @@ export default function Performance() {
       } catch (e: any) {
         if (!mounted) return;
         setError(e?.message ?? "Failed to load metrics");
+        setRows([]);
       }
-    })();
+    }
+
+    if (p.loading) return;
+
+    // Deterministic gate: no org truth => no query
+    if (!p.activeOrgId) {
+      setRows([]);
+      return;
+    }
+
+    load(p.activeOrgId);
 
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [p.loading, p.activeOrgId]);
+
+  const accessDenied = !p.loading && (p.role !== "admin" && p.role !== "manager");
 
   const leaderboard = useMemo(() => {
     const copy = rows.slice();
@@ -109,6 +108,25 @@ export default function Performance() {
   }, [leaderboard, range]);
 
   const closeRate = totals.visits === 0 ? 0 : Math.round((totals.closed / totals.visits) * 1000) / 10;
+
+  if (p.loading) {
+    return (
+      <div className="space-y-4">
+        <div className="border rounded-md p-3 text-sm">Loading workspace…</div>
+      </div>
+    );
+  }
+
+  // Router should already block this, but keep deterministic UI if reached.
+  if (accessDenied) {
+    return (
+      <div className="space-y-4">
+        <div className="border rounded-md p-3 text-sm">
+          Access denied: manager/admin only.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
