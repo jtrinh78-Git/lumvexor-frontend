@@ -1,5 +1,5 @@
 // SECTION: Imports
-import React, { useEffect } from "react";
+import React from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthProvider";
 

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
 // SECTION: types
@@ -7,45 +7,90 @@ type AppRole = "agent" | "manager" | "admin";
 
 // SECTION: AppLayout
 export function AppLayout() {
-  const [role, setRole] = useState<AppRole>("agent");
+  const location = useLocation();
+
+  const [loadingRole, setLoadingRole] = useState(true);
+  const [role, setRole] = useState<AppRole | null>(null);
+
+  const aliveRef = useRef(true);
+  const lastUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    (async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      const uid = authData.user?.id;
-      if (!uid) {
-        setRole("agent");
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    async function loadRole() {
+      setLoadingRole(true);
+      setRole(null);
+
+      const { data: authData, error: authErr } = await supabase.auth.getUser();
+      if (!aliveRef.current) return;
+
+      if (authErr) {
+        console.error("AppLayout getUser error:", authErr);
+        setLoadingRole(false);
         return;
       }
 
+      const uid = authData.user?.id ?? null;
+      lastUserIdRef.current = uid;
+
+      if (!uid) {
+        setLoadingRole(false);
+        return;
+      }
+
+      const thisUid = uid;
+
       const { data, error } = await supabase
-  .from("profiles")
-  .select("role")
-  .eq("user_id", uid)
-  .single();
+        .from("profiles")
+        .select("role")
+        .eq("user_id", thisUid)
+        .single();
 
-console.log("PROFILE QUERY RESULT:", { data, error });
+      if (!aliveRef.current) return;
 
-if (error) {
-  console.error("Profile fetch error:", error);
-  setRole("agent");
-} else if (data?.role) {
-  setRole(data.role as AppRole);
-} else {
-  setRole("agent");
-}
-    })();
-  }, []);
+      // Ignore stale result if user changed mid-flight
+      if (lastUserIdRef.current !== thisUid) return;
+
+      if (error) {
+        console.error("AppLayout profile fetch error:", error);
+        setRole(null);
+        setLoadingRole(false);
+        return;
+      }
+
+      const nextRole = (data?.role ?? null) as AppRole | null;
+      setRole(nextRole);
+      setLoadingRole(false);
+    }
+
+    // Initial + on route changes (helps after login redirect)
+    loadRole();
+
+    // Also re-check on login/logout/refresh
+    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      loadRole();
+    });
+
+    return () => {
+      sub.subscription.unsubscribe();
+    };
+  }, [location.pathname]);
 
   const isAdminAccess = role === "admin" || role === "manager";
 
   const navItems = useMemo(() => {
     const base = [
-  { to: "/app", label: "Dashboard", end: true as const },
-  { to: "/app/projects", label: "Projects" },
-  ...(isAdminAccess ? [{ to: "/app/performance", label: "Performance" }] : []),
-  { to: "/app/settings", label: "Settings" },
-];
+      { to: "/app", label: "Dashboard", end: true as const },
+      { to: "/app/projects", label: "Projects" },
+      ...(isAdminAccess ? [{ to: "/app/performance", label: "Performance" }] : []),
+      { to: "/app/settings", label: "Settings" },
+    ];
 
     if (isAdminAccess) {
       base.push({ to: "/app/admin/users", label: "Admin" });
@@ -80,7 +125,8 @@ if (error) {
 
         <div className="lvx-sidebar-footer">
           <div className="lvx-muted">
-            Role: <strong>{role}</strong>
+            Role:{" "}
+            <strong>{loadingRole ? "loading…" : role ? role : "unknown"}</strong>
           </div>
         </div>
       </aside>
