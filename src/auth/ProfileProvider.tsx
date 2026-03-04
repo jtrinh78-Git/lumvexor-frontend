@@ -1,9 +1,10 @@
+// SECTION: Imports
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthProvider";
 
-// SECTION: types
-type AppRole = "agent" | "manager" | "admin";
+// SECTION: Types
+export type AppRole = "agent" | "manager" | "admin";
 
 type ProfileState = {
   loading: boolean;
@@ -22,7 +23,6 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   const [activeOrgId, setActiveOrgId] = useState<string | null>(null);
 
   const aliveRef = useRef(true);
-  const lastUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     aliveRef.current = true;
@@ -32,40 +32,55 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    async function loadProfile(uid: string) {
+    async function load(uid: string) {
       setLoading(true);
       setRole(null);
       setActiveOrgId(null);
 
-      lastUserIdRef.current = uid;
-
-      const { data, error } = await supabase
+      // 1) active org from profiles (org selection)
+      const { data: profile, error: profileErr } = await supabase
         .from("profiles")
-        .select("role, active_org_id")
+        .select("active_org_id")
         .eq("user_id", uid)
         .single();
 
       if (!aliveRef.current) return;
-      if (lastUserIdRef.current !== uid) return;
 
-      if (error) {
-        console.error("ProfileProvider profile query error:", error);
+      if (profileErr) {
+        console.error("ProfileProvider: profiles lookup failed:", profileErr);
         setLoading(false);
         return;
       }
 
-      setRole((data?.role ?? null) as AppRole | null);
-      setActiveOrgId((data?.active_org_id ?? null) as string | null);
+      const orgId = (profile?.active_org_id ?? null) as string | null;
+      setActiveOrgId(orgId);
+
+      if (!orgId) {
+        setLoading(false);
+        return;
+      }
+
+      // 2) role from org_memberships (authority)
+      const { data: membership, error: memberErr } = await supabase
+        .from("org_memberships")
+        .select("role")
+        .eq("user_id", uid)
+        .eq("org_id", orgId)
+        .single();
+
+      if (!aliveRef.current) return;
+
+      if (memberErr) {
+        console.error("ProfileProvider: org_memberships lookup failed:", memberErr);
+        setLoading(false);
+        return;
+      }
+
+      setRole((membership?.role ?? null) as AppRole | null);
       setLoading(false);
     }
 
-    // Wait for auth to resolve first
-    if (authLoading) {
-      setLoading(true);
-      setRole(null);
-      setActiveOrgId(null);
-      return;
-    }
+    if (authLoading) return;
 
     if (!userId) {
       setLoading(false);
@@ -74,13 +89,10 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    loadProfile(userId);
+    load(userId);
   }, [userId, authLoading]);
 
-  const value = useMemo<ProfileState>(
-    () => ({ loading, role, activeOrgId }),
-    [loading, role, activeOrgId]
-  );
+  const value = useMemo<ProfileState>(() => ({ loading, role, activeOrgId }), [loading, role, activeOrgId]);
 
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;
 }

@@ -1,86 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { supabase } from "../lib/supabase";
-
-// SECTION: types
-type AppRole = "agent" | "manager" | "admin";
+import { useMemo } from "react";
+import { NavLink, Outlet } from "react-router-dom";
+import { useProfile } from "../auth/ProfileProvider";
 
 // SECTION: AppLayout
 export function AppLayout() {
-  const location = useLocation();
-
-  const [loadingRole, setLoadingRole] = useState(true);
-  const [role, setRole] = useState<AppRole | null>(null);
-
-  const aliveRef = useRef(true);
-  const lastUserIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    aliveRef.current = true;
-    return () => {
-      aliveRef.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    async function loadRole() {
-      setLoadingRole(true);
-      setRole(null);
-
-      const { data: authData, error: authErr } = await supabase.auth.getUser();
-      if (!aliveRef.current) return;
-
-      if (authErr) {
-        console.error("AppLayout getUser error:", authErr);
-        setLoadingRole(false);
-        return;
-      }
-
-      const uid = authData.user?.id ?? null;
-      lastUserIdRef.current = uid;
-
-      if (!uid) {
-        setLoadingRole(false);
-        return;
-      }
-
-      const thisUid = uid;
-
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("user_id", thisUid)
-        .single();
-
-      if (!aliveRef.current) return;
-
-      // Ignore stale result if user changed mid-flight
-      if (lastUserIdRef.current !== thisUid) return;
-
-      if (error) {
-        console.error("AppLayout profile fetch error:", error);
-        setRole(null);
-        setLoadingRole(false);
-        return;
-      }
-
-      const nextRole = (data?.role ?? null) as AppRole | null;
-      setRole(nextRole);
-      setLoadingRole(false);
-    }
-
-    // Initial + on route changes (helps after login redirect)
-    loadRole();
-
-    // Also re-check on login/logout/refresh
-    const { data: sub } = supabase.auth.onAuthStateChange(() => {
-      loadRole();
-    });
-
-    return () => {
-      sub.subscription.unsubscribe();
-    };
-  }, [location.pathname]);
+  const { loading, role } = useProfile();
 
   const isAdminAccess = role === "admin" || role === "manager";
 
@@ -92,9 +16,7 @@ export function AppLayout() {
       { to: "/app/settings", label: "Settings" },
     ];
 
-    if (isAdminAccess) {
-      base.push({ to: "/app/admin/users", label: "Admin" });
-    }
+    if (isAdminAccess) base.push({ to: "/app/admin/users", label: "Admin" });
 
     return base;
   }, [isAdminAccess]);
@@ -125,8 +47,7 @@ export function AppLayout() {
 
         <div className="lvx-sidebar-footer">
           <div className="lvx-muted">
-            Role:{" "}
-            <strong>{loadingRole ? "loading…" : role ? role : "unknown"}</strong>
+            Role: <strong>{loading ? "loading…" : role ?? "unknown"}</strong>
           </div>
         </div>
       </aside>
