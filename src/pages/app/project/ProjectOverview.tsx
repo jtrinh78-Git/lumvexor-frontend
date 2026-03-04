@@ -1,9 +1,11 @@
+// SECTION: Imports
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { Card, CardBody, CardTitle } from "../../../components/ui/Card";
 import { PageHeader } from "../../../components/ui/PageHeader";
+import { useAuth } from "../../../auth/AuthProvider";
 import { useTerritory } from "../../../territory/TerritoryContext";
 import type { VisitOutcome } from "../../../territory/types";
 
@@ -11,21 +13,19 @@ import type { VisitOutcome } from "../../../territory/types";
 export function ProjectOverview() {
   const { projectId } = useParams();
   const t = useTerritory();
+  const { userId } = useAuth();
 
   const addressId = projectId || "";
   const address = addressId ? t.getAddress(addressId) : undefined;
 
-  // MVP: stable agent id (later: auth)
-  const agentId = "agent-1";
-  const isAssigned = !!address?.assignedAgentId && address.assignedAgentId === agentId;
-  
+  // Deterministic: agentId is authenticated user UUID
+  const agentId = userId ?? "";
+  const isAssigned = !!agentId && !!address?.assignedAgentId && address.assignedAgentId === agentId;
+
   const [outcome, setOutcome] = useState<VisitOutcome>("owner_unavailable");
   const [notes, setNotes] = useState("");
 
-  const visits = useMemo(
-    () => (addressId ? t.getVisitsForAddress(addressId) : []),
-    [addressId, t]
-  );
+  const visits = useMemo(() => (addressId ? t.getVisitsForAddress(addressId) : []), [addressId, t]);
 
   const activeCycle = useMemo(
     () => (addressId ? t.getActiveCycleForAddress(addressId) : undefined),
@@ -44,6 +44,8 @@ export function ProjectOverview() {
       isActive,
     };
   }, [address?.cooldownUntil]);
+
+  const actionsDisabled = !addressId || !agentId;
 
   return (
     <div className="lvx-page">
@@ -65,55 +67,61 @@ export function ProjectOverview() {
         <CardTitle>Workspace Status</CardTitle>
         <CardBody>
           <ul className="lvx-list">
-  <li>
-    Address: <strong>{address?.businessName ?? addressId}</strong>
-  </li>
+            <li>
+              Address: <strong>{address?.businessName ?? addressId}</strong>
+            </li>
 
-  <li>
-    Assigned Agent:{" "}
-    <span className="lvx-muted">{address?.assignedAgentId ?? "—"}</span>
-  </li>
+            <li>
+              Assigned Agent:{" "}
+              <span className="lvx-muted">{address?.assignedAgentId ?? "—"}</span>
+            </li>
 
-  <li>
-    Access:{" "}
-    {isAssigned ? (
-      <Badge variant="accent">assigned</Badge>
-    ) : (
-      <Badge variant="neutral">not assigned</Badge>
-    )}
-  </li>
+            <li>
+              Access:{" "}
+              {isAssigned ? (
+                <Badge variant="accent">assigned</Badge>
+              ) : (
+                <Badge variant="neutral">not assigned</Badge>
+              )}
+            </li>
 
-  <li>
-    Cycle:{" "}
-    {activeCycle ? (
-      <>
-        <strong>{activeCycle.previewCount}/3</strong> • Expires{" "}
-        {new Date(activeCycle.expiresAt).toLocaleString()}
-      </>
-    ) : (
-      <span className="lvx-muted">No active preview cycle</span>
-    )}
-  </li>
+            <li>
+              Cycle:{" "}
+              {activeCycle ? (
+                <>
+                  <strong>{activeCycle.previewCount}/3</strong> • Expires{" "}
+                  {new Date(activeCycle.expiresAt).toLocaleString()}
+                </>
+              ) : (
+                <span className="lvx-muted">No active preview cycle</span>
+              )}
+            </li>
 
-  <li>
-    Cooldown:{" "}
-    <span className={cooldownInfo.isActive ? "" : "lvx-muted"}>
-      {cooldownInfo.text}
-    </span>
-  </li>
+            <li>
+              Cooldown:{" "}
+              <span className={cooldownInfo.isActive ? "" : "lvx-muted"}>
+                {cooldownInfo.text}
+              </span>
+            </li>
 
-  <li>
-    Last Agent:{" "}
-    <span className="lvx-muted">{address?.lastAgentId ?? "—"}</span>
-  </li>
+            <li>
+              Last Agent:{" "}
+              <span className="lvx-muted">{address?.lastAgentId ?? "—"}</span>
+            </li>
 
-  <li>
-    Last Visit:{" "}
-    <span className="lvx-muted">
-      {address?.lastVisitAt ? new Date(address.lastVisitAt).toLocaleString() : "—"}
-    </span>
-  </li>
-</ul>
+            <li>
+              Last Visit:{" "}
+              <span className="lvx-muted">
+                {address?.lastVisitAt ? new Date(address.lastVisitAt).toLocaleString() : "—"}
+              </span>
+            </li>
+          </ul>
+
+          {!agentId ? (
+            <div className="lvx-muted" style={{ marginTop: 10 }}>
+              Auth user not resolved yet. Actions are temporarily disabled.
+            </div>
+          ) : null}
         </CardBody>
       </Card>
 
@@ -121,9 +129,17 @@ export function ProjectOverview() {
         <CardTitle>Log Visit</CardTitle>
         <CardBody>
           <div style={{ display: "grid", gap: 10 }}>
-            <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+            <div
+              style={{
+                display: "grid",
+                gap: 10,
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              }}
+            >
               <label>
-                <div className="lvx-muted" style={{ marginBottom: 6 }}>Outcome</div>
+                <div className="lvx-muted" style={{ marginBottom: 6 }}>
+                  Outcome
+                </div>
                 <select
                   className="lvx-input"
                   value={outcome}
@@ -138,7 +154,9 @@ export function ProjectOverview() {
               </label>
 
               <label>
-                <div className="lvx-muted" style={{ marginBottom: 6 }}>Cooldown override (days)</div>
+                <div className="lvx-muted" style={{ marginBottom: 6 }}>
+                  Cooldown override (days)
+                </div>
                 <input
                   className="lvx-input"
                   type="number"
@@ -154,7 +172,9 @@ export function ProjectOverview() {
             </div>
 
             <label>
-              <div className="lvx-muted" style={{ marginBottom: 6 }}>Notes</div>
+              <div className="lvx-muted" style={{ marginBottom: 6 }}>
+                Notes
+              </div>
               <textarea
                 className="lvx-input"
                 value={notes}
@@ -167,9 +187,9 @@ export function ProjectOverview() {
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <Button
                 variant="primary"
-                disabled={!addressId}
+                disabled={actionsDisabled}
                 onClick={() => {
-                  if (!addressId) return;
+                  if (!addressId || !agentId) return;
                   t.logVisit({
                     addressId,
                     agentId,
@@ -184,9 +204,9 @@ export function ProjectOverview() {
 
               <Button
                 variant="secondary"
-                disabled={!addressId || !!activeCycle}
+                disabled={actionsDisabled || !!activeCycle}
                 onClick={() => {
-                  if (!addressId) return;
+                  if (!addressId || !agentId) return;
                   if (activeCycle) return;
                   t.startPreviewCycle({ addressId, agentId, expiresInHours: 48 });
                 }}
@@ -206,8 +226,8 @@ export function ProjectOverview() {
             </div>
 
             <div className="lvx-muted">
-              Defaults: <strong>declined → 30 days</strong>, others → <strong>14 days</strong>.
-              Admin override comes later.
+              Defaults: <strong>declined → 30 days</strong>, others →{" "}
+              <strong>14 days</strong>. Admin override comes later.
             </div>
           </div>
         </CardBody>
@@ -223,9 +243,7 @@ export function ProjectOverview() {
               {visits.map((v) => (
                 <div key={v.id} className="lvx-rowlink">
                   <div>
-                    <div style={{ fontWeight: 800 }}>
-                      {v.outcome.replace("_", " ")}
-                    </div>
+                    <div style={{ fontWeight: 800 }}>{v.outcome.replace("_", " ")}</div>
                     <div className="lvx-muted">
                       Agent: {v.agentId} • {new Date(v.createdAt).toLocaleString()}
                     </div>
