@@ -1,6 +1,8 @@
+// SECTION: Imports
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../auth/AuthProvider";
+import { useProfile } from "../auth/ProfileProvider";
 import type {
   Address,
   AddressStatus,
@@ -55,7 +57,6 @@ function mapAddressRow(r: any): Address {
 }
 
 function mapVisitRow(r: any): VisitLog {
-  // Assumption: territory_visits has outcome, notes, created_at
   return {
     id: r.id,
     addressId: r.address_id,
@@ -98,30 +99,12 @@ function mapPrintRow(r: any): PrintLog {
     addressId: r.address_id,
     previewCycleId: r.preview_cycle_id,
     agentId: r.agent_id,
-    // numeric in Postgres may arrive as string depending on client settings
     printCost: typeof r.print_cost === "number" ? r.print_cost : Number(r.print_cost ?? 0),
     reprint: !!r.reprint,
     createdAt: r.created_at,
   };
 }
 
-
-
-// SECTION: org resolver (session-authoritative)
-async function resolveOrgIdForUser(userId: string): Promise<string> {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("active_org_id")
-    .eq("user_id", userId)
-    .single();
-
-  if (error) throw error;
-
-  const orgId = data?.active_org_id as string | null;
-  if (!orgId) throw new Error("No active_org_id set for this user");
-
-  return orgId;
-}
 // SECTION: API
 type TerritoryApi = {
   state: TerritoryState;
@@ -181,23 +164,15 @@ const TerritoryContext = createContext<TerritoryApi | null>(null);
 export function TerritoryProvider(props: { children: React.ReactNode }) {
   const [state, setState] = useState<TerritoryState>(EMPTY_STATE);
 
-   const { session, loading: authLoading } = useAuth();
+  const { session, loading: authLoading } = useAuth();
   const userId = session?.user?.id ?? null;
-  const orgIdRef = useRef<string | null>(null);
-  async function ensureOrgId(): Promise<string> {
-    if (!userId) throw new Error("Not authenticated");
-    if (orgIdRef.current) return orgIdRef.current;
 
-    const orgId = await resolveOrgIdForUser(userId);
-    orgIdRef.current = orgId;
-    return orgId;
-  }
-  
+  const { activeOrgId, loading: profileLoading } = useProfile();
 
-  async function hydrateFromSupabase() {
+  const lastHydratedOrgIdRef = useRef<string | null>(null);
+
+  async function hydrateFromSupabase(orgId: string) {
     try {
-      const orgId = await ensureOrgId();
-
       const [addrRes, visitRes, cycleRes, assetRes, printRes] = await Promise.all([
         supabase.from("territory_addresses").select("*").eq("org_id", orgId),
         supabase.from("territory_visits").select("*").eq("org_id", orgId),
@@ -222,22 +197,37 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
     }
   }
 
-    useEffect(() => {
-    if (authLoading) return;
+  useEffect(() => {
+    if (authLoading || profileLoading) return;
 
-    // Logged out: clear cached org + reset state and do nothing.
-    if (!userId) {
-      orgIdRef.current = null;
+    // Logged out OR org not resolved: deterministic block (no queries)
+    if (!userId || !activeOrgId) {
+      lastHydratedOrgIdRef.current = null;
       setState(EMPTY_STATE);
       return;
     }
 
-    // Logged in: hydrate after session is confirmed.
-    hydrateFromSupabase();
+    // Org changed: hard reset local state then rehydrate.
+    if (lastHydratedOrgIdRef.current !== activeOrgId) {
+      lastHydratedOrgIdRef.current = activeOrgId;
+      setState(EMPTY_STATE);
+      hydrateFromSupabase(activeOrgId);
+      return;
+    }
+
+    // Org stable + first load case
+    if (state === EMPTY_STATE) {
+      hydrateFromSupabase(activeOrgId);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, userId]);
+  }, [authLoading, profileLoading, userId, activeOrgId]);
 
   const api = useMemo<TerritoryApi>(() => {
+    function requireOrgId(): string {
+      if (!activeOrgId) throw new Error("Org not resolved");
+      return activeOrgId;
+    }
+
     return {
       state,
 
@@ -252,7 +242,7 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
 
         (async () => {
           try {
-            const orgId = await ensureOrgId();
+            const orgId = requireOrgId();
             const { error } = await supabase
               .from("territory_addresses")
               .update({ assigned_agent_id: input.agentId, updated_at: nowIso() })
@@ -318,7 +308,7 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
 
         (async () => {
           try {
-            const orgId = await ensureOrgId();
+            const orgId = requireOrgId();
             if (!userId) throw new Error("Not authenticated");
             const actorId = userId;
 
@@ -331,13 +321,12 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
               state: created.state,
               zip: created.zip,
               status: created.status,
-              assigned_agent_id: actorId, // sane default for multi-agent
+              assigned_agent_id: actorId,
               created_at: createdAt,
               updated_at: createdAt,
             });
             if (error) throw error;
 
-            // reflect assigned_agent_id from DB default choice
             setState((prev) => ({
               ...prev,
               addresses: prev.addresses.map((a) =>
@@ -393,9 +382,8 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
 
         (async () => {
           try {
-            const orgId = await ensureOrgId();
+            const orgId = requireOrgId();
 
-            // Assumption: territory_visits columns include outcome, notes, created_at
             const { error: visitErr } = await supabase.from("territory_visits").insert({
               id: created.id,
               org_id: orgId,
@@ -445,7 +433,7 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
 
         (async () => {
           try {
-            const orgId = await ensureOrgId();
+            const orgId = requireOrgId();
             const { error } = await supabase.from("preview_cycles").insert({
               id: created.id,
               org_id: orgId,
@@ -482,7 +470,7 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
         if (updated) {
           (async () => {
             try {
-              const orgId = await ensureOrgId();
+              const orgId = requireOrgId();
               const { error } = await supabase
                 .from("preview_cycles")
                 .update({ preview_count: updated!.previewCount })
@@ -502,7 +490,6 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
         const cycle = state.previewCycles.find((c) => c.id === input.previewCycleId);
         if (!cycle) return undefined;
 
-        // Enforce 3 previews per cycle (discipline)
         if (cycle.previewCount >= 3) return undefined;
 
         const createdAt = nowIso();
@@ -512,11 +499,9 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
           previewCycleId: input.previewCycleId,
           agentId: input.agentId,
           kind: input.kind,
-
           watermarkedRef: `wm://${input.addressId}/${input.previewCycleId}/${input.kind}/${Date.now()}`,
           cleanRecipeRef: `recipe://${input.addressId}/${input.previewCycleId}/${input.kind}`,
           cleanUnlocked: false,
-
           createdAt,
         };
 
@@ -532,7 +517,7 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
 
         (async () => {
           try {
-            const orgId = await ensureOrgId();
+            const orgId = requireOrgId();
 
             const { error: assetErr } = await supabase.from("preview_assets").insert({
               id: created.id,
@@ -548,7 +533,6 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
             });
             if (assetErr) throw assetErr;
 
-            // keep cycle preview_count in sync
             const nextCount = Math.min(3, (cycle.previewCount ?? 0) + 1);
             const { error: cycleErr } = await supabase
               .from("preview_cycles")
@@ -580,7 +564,7 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
 
         (async () => {
           try {
-            const orgId = await ensureOrgId();
+            const orgId = requireOrgId();
             const { error } = await supabase.from("print_logs").insert({
               id: created.id,
               org_id: orgId,
@@ -601,13 +585,17 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
       },
 
       resetDemo() {
-        // Phase 5 direction: demo reset should NOT delete org data.
-        // For now: local reset + rehydrate.
+        // Deterministic: no org => no queries
+        if (!activeOrgId) {
+          setState(EMPTY_STATE);
+          return;
+        }
+
         setState(EMPTY_STATE);
-        hydrateFromSupabase();
+        hydrateFromSupabase(activeOrgId);
       },
     };
-  }, [state]);
+  }, [state, activeOrgId, userId]);
 
   return <TerritoryContext.Provider value={api}>{props.children}</TerritoryContext.Provider>;
 }
