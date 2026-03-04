@@ -1,6 +1,7 @@
+// SECTION: Imports
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
+import { useProfile } from "../../auth/ProfileProvider";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Card, CardBody, CardTitle } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
@@ -28,8 +29,8 @@ type AuditRow = {
 
 // SECTION: AdminUsers
 export function AdminUsers() {
-  const [myRole, setMyRole] = useState<AppRole>("agent");
-  const [loading, setLoading] = useState(true);
+  const profile = useProfile();
+
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,49 +41,10 @@ export function AdminUsers() {
   const [auditOpenFor, setAuditOpenFor] = useState<string | null>(null);
   const [auditLoading, setAuditLoading] = useState(false);
 
-  const isAdminAccess = myRole === "admin" || myRole === "manager";
-
-  // SECTION: load my role
-  useEffect(() => {
-    (async () => {
-      setError(null);
-      setLoading(true);
-
-      const { data: authData, error: authErr } = await supabase.auth.getUser();
-      if (authErr) {
-        setError(authErr.message);
-        setLoading(false);
-        return;
-      }
-
-      const uid = authData.user?.id;
-      if (!uid) {
-        setMyRole("agent");
-        setLoading(false);
-        return;
-      }
-
-      const { data, error: roleErr } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("user_id", uid)
-        .single();
-
-      if (roleErr) {
-        setError(roleErr.message);
-        setMyRole("agent");
-        setLoading(false);
-        return;
-      }
-
-      setMyRole((data?.role as AppRole) || "agent");
-      setLoading(false);
-    })();
-  }, []);
-
   // SECTION: load profiles
   const fetchProfiles = async () => {
     setError(null);
+
     const query = supabase
       .from("profiles")
       .select("user_id,email,full_name,role,created_at")
@@ -104,10 +66,14 @@ export function AdminUsers() {
   };
 
   useEffect(() => {
-    if (!isAdminAccess) return;
+    if (profile.loading) return;
+
+    // Deterministic: this page should never render without workspace truth
+    if (!profile.activeOrgId || !profile.role) return;
+
     fetchProfiles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdminAccess]);
+  }, [profile.loading, profile.activeOrgId, profile.role]);
 
   const filteredCount = useMemo(() => profiles.length, [profiles]);
 
@@ -116,10 +82,7 @@ export function AdminUsers() {
     setSavingUserId(userId);
     setError(null);
 
-    const { error: e } = await supabase
-      .from("profiles")
-      .update({ role: nextRole })
-      .eq("user_id", userId);
+    const { error: e } = await supabase.from("profiles").update({ role: nextRole }).eq("user_id", userId);
 
     if (e) {
       setError(e.message);
@@ -161,33 +124,28 @@ export function AdminUsers() {
     setAudit((data as AuditRow[]) || []);
   };
 
-  if (loading) {
+  if (profile.loading) {
     return (
       <div className="lvx-page">
-        <PageHeader title="Admin" subtitle="Loading…" right={<Badge variant="neutral">role</Badge>} />
+        <PageHeader title="Admin Users" subtitle="Loading workspace…" right={<Badge variant="neutral">…</Badge>} />
       </div>
     );
   }
 
-  if (!isAdminAccess) {
+  // RequireRole should have gated already. If somehow reached, show deterministic denial.
+  if (profile.role !== "admin") {
     return (
       <div className="lvx-page">
         <PageHeader
           title="Admin"
-          subtitle="Access restricted. Admin/Manager only."
-          right={<Badge variant="neutral">{myRole}</Badge>}
+          subtitle="Access restricted. Admin only."
+          right={<Badge variant="neutral">{profile.role ?? "—"}</Badge>}
         />
-
         <Card>
           <CardTitle>Restricted</CardTitle>
           <CardBody>
             <div className="lvx-muted">
-              Your role is <strong>{myRole}</strong>. This page is only available to Admin/Manager.
-            </div>
-            <div style={{ marginTop: 12 }}>
-              <Link to="/app">
-                <Button variant="secondary">Back to Dashboard</Button>
-              </Link>
+              Your role is <strong>{profile.role ?? "—"}</strong>. This page is only available to Admin.
             </div>
           </CardBody>
         </Card>
@@ -200,7 +158,7 @@ export function AdminUsers() {
       <PageHeader
         title="Admin Users"
         subtitle="Promote/demote roles. Every role change is audited."
-        right={<Badge variant="accent">{myRole}</Badge>}
+        right={<Badge variant="accent">{profile.role}</Badge>}
       />
 
       {error ? (
@@ -287,8 +245,8 @@ export function AdminUsers() {
                           {audit.map((a) => (
                             <div key={a.id} className="lvx-muted">
                               {new Date(a.created_at).toLocaleString()} •{" "}
-                              <strong>{a.old_role ?? "—"}</strong> → <strong>{a.new_role}</strong>{" "}
-                              • actor: {a.actor_user_id ?? "—"}
+                              <strong>{a.old_role ?? "—"}</strong> → <strong>{a.new_role}</strong> • actor:{" "}
+                              {a.actor_user_id ?? "—"}
                             </div>
                           ))}
                         </div>
