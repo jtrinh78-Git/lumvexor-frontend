@@ -1,5 +1,3 @@
-// SECTION: Imports
-// (delete this line entirely)
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthProvider";
 
