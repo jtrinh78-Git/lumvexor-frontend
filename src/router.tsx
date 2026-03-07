@@ -26,7 +26,7 @@ import { ProjectPreviews } from "./pages/app/project/ProjectPreviews";
 import { ProjectAssets } from "./pages/app/project/ProjectAssets";
 import { ProjectPublishing } from "./pages/app/project/ProjectPublishing";
 import { ProjectSettings } from "./pages/app/project/ProjectSettings";
-
+import BusinessDemo from "./pages/app/BusinessDemo";
 // SECTION: router
 export const router = createBrowserRouter([
   {
@@ -71,7 +71,7 @@ export const router = createBrowserRouter([
 
                   { path: "settings", element: <AppSettings /> },
                   { path: "businesses/:businessId/briefing", element: <BusinessBriefing /> },
-
+                  { path: "businesses/:businessId/demo", element: <BusinessDemo /> },
                   {
                     path: "projects/:projectId",
                     element: <ProjectLayout />,

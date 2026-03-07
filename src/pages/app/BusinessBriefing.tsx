@@ -327,13 +327,23 @@ export default function BusinessBriefing() {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="rounded-lg border px-4 py-2 text-sm"
-        >
-          Back
-        </button>
+        <div className="flex items-center gap-2">
+  <button
+    type="button"
+    onClick={() => navigate(`/app/businesses/${business.id}/demo`)}
+    className="rounded-lg border px-4 py-2 text-sm"
+  >
+    Demo Mode
+  </button>
+
+  <button
+    type="button"
+    onClick={() => navigate(-1)}
+    className="rounded-lg border px-4 py-2 text-sm"
+  >
+    Back
+  </button>
+</div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
