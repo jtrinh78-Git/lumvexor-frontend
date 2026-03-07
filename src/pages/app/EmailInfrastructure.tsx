@@ -58,8 +58,10 @@ export default function EmailInfrastructure() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [savingCampaign, setSavingCampaign] = useState(false);
   const [savingLead, setSavingLead] = useState(false);
-  const [pageLoading, setPageLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+const [queueingLeads, setQueueingLeads] = useState(false);
+const [pageLoading, setPageLoading] = useState(true);
+const [error, setError] = useState<string | null>(null);
+const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const [enabledForAgents, setEnabledForAgents] = useState(false);
   const [enabledForClients, setEnabledForClients] = useState(false);
@@ -100,7 +102,8 @@ export default function EmailInfrastructure() {
     }
 
     setPageLoading(true);
-    setError(null);
+setError(null);
+setSuccessMessage(null);
 
     const { data: featureData, error: featureError } = await supabase
       .from("org_feature_settings")
@@ -350,6 +353,89 @@ export default function EmailInfrastructure() {
 
     await loadEverything();
   }
+  async function handleQueueEligibleLeads() {
+  if (!selectedCampaignId) {
+    setError("Select a campaign before queueing leads.");
+    return;
+  }
+
+  setQueueingLeads(true);
+  setError(null);
+  setSuccessMessage(null);
+
+  const { data: leadsData, error: leadsError } = await supabase
+    .from("email_leads")
+    .select("id")
+    .eq("campaign_id", selectedCampaignId);
+
+  if (leadsError) {
+    setError(leadsError.message || "Failed to load campaign leads.");
+    setQueueingLeads(false);
+    return;
+  }
+
+  const leadIds = (((leadsData as Array<{ id: string }> | null) ?? [])).map((lead) => lead.id);
+
+  if (leadIds.length === 0) {
+    setError("No leads available to queue for this campaign.");
+    setQueueingLeads(false);
+    return;
+  }
+
+  const { data: existingQueueData, error: existingQueueError } = await supabase
+    .from("email_queue")
+    .select("lead_id, status")
+    .eq("campaign_id", selectedCampaignId)
+    .in("lead_id", leadIds);
+
+  if (existingQueueError) {
+    setError(existingQueueError.message || "Failed to inspect existing queue records.");
+    setQueueingLeads(false);
+    return;
+  }
+
+  const queuedLeadIds = new Set(
+    (((existingQueueData as Array<{ lead_id: string; status: string }> | null) ?? []))
+      .filter((row) => row.status === "queued")
+      .map((row) => row.lead_id)
+  );
+
+  const leadsToInsert = leadIds.filter((leadId) => !queuedLeadIds.has(leadId));
+
+  if (leadsToInsert.length === 0) {
+    setSuccessMessage("All eligible leads are already queued for this campaign.");
+    setQueueingLeads(false);
+    await loadEverything();
+    return;
+  }
+
+  const nowIso = new Date().toISOString();
+
+  const payload = leadsToInsert.map((leadId) => ({
+    campaign_id: selectedCampaignId,
+    lead_id: leadId,
+    send_after: nowIso,
+    status: "queued",
+    attempt_count: 0,
+    provider: null,
+    provider_message_id: null,
+    last_error: null,
+  }));
+
+  const { error: insertError } = await supabase
+    .from("email_queue")
+    .insert(payload);
+
+  if (insertError) {
+    setError(insertError.message || "Failed to queue eligible leads.");
+    setQueueingLeads(false);
+    return;
+  }
+
+  setSuccessMessage(`Queued ${leadsToInsert.length} lead${leadsToInsert.length === 1 ? "" : "s"} successfully.`);
+  setQueueingLeads(false);
+  await loadEverything();
+}
 
   // SECTION: Derived State
   const totals = useMemo(() => {
@@ -630,10 +716,16 @@ export default function EmailInfrastructure() {
       </div>
 
       {error ? (
-        <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
+  <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700">
+    {error}
+  </div>
+) : null}
+
+{successMessage ? (
+  <div className="rounded-xl border border-green-300 bg-green-50 p-4 text-sm text-green-700">
+    {successMessage}
+  </div>
+) : null}
 
       <div className="rounded-2xl border p-5">
         <div className="text-base font-semibold">Campaigns</div>
@@ -692,10 +784,23 @@ export default function EmailInfrastructure() {
 
       <div className="rounded-2xl border p-5">
         <div className="flex items-center justify-between gap-4">
-          <div className="text-base font-semibold">Selected Campaign Leads</div>
-          <div className="text-sm opacity-70">
-            {selectedCampaign ? selectedCampaign.name : "No campaign selected"}
-          </div>
+          <div className="flex items-center justify-between gap-4">
+  <div>
+    <div className="text-base font-semibold">Selected Campaign Leads</div>
+    <div className="text-sm opacity-70">
+      {selectedCampaign ? selectedCampaign.name : "No campaign selected"}
+    </div>
+  </div>
+
+  <button
+    type="button"
+    onClick={handleQueueEligibleLeads}
+    disabled={queueingLeads || !selectedCampaignId}
+    className="rounded-lg border px-4 py-2 text-sm"
+  >
+    {queueingLeads ? "Queueing…" : "Queue Eligible Leads"}
+  </button>
+</div>
         </div>
 
         {!selectedCampaignId ? (
