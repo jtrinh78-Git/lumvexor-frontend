@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
-
+import { OpportunityCards } from "../../components/opportunity/OpportunityCards";
 // SECTION: Types
 type BusinessRow = {
   id: string;
@@ -417,7 +417,25 @@ export default function BusinessBriefing() {
         <div className="text-base font-semibold">Opening Angle</div>
         <div className="mt-3 text-sm">{openingAngle}</div>
       </div>
-
+<OpportunityCards
+  insights={insights}
+  profile={
+    profile
+      ? {
+          website: profile.website,
+          google_rating: profile.google_rating,
+          google_review_count: profile.google_review_count,
+          services: profile.services,
+        }
+      : null
+  }
+  socials={socials.map((row: BusinessSocialRow) => ({
+    platform: row.platform,
+    username: row.username,
+    followers: row.followers,
+    last_post_date: row.last_post_date,
+  }))}
+/>
       <div className="rounded-2xl border p-5">
         <div className="text-base font-semibold">Quick Facts</div>
         <div className="mt-4 grid gap-3 md:grid-cols-2">

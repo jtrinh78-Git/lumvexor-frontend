@@ -10,7 +10,19 @@ import { Badge } from "../../components/ui/Badge";
 // SECTION: types
 type AppRole = "agent" | "manager" | "admin";
 
-type ProfileRow = {
+type ProfileIdentityRow = {
+  user_id: string;
+  email: string | null;
+  full_name: string | null;
+  created_at: string;
+};
+
+type MembershipRow = {
+  user_id: string;
+  role: AppRole;
+};
+
+type UiRow = {
   user_id: string;
   email: string | null;
   full_name: string | null;
@@ -35,62 +47,110 @@ export function AdminUsers() {
   const [error, setError] = useState<string | null>(null);
 
   const [q, setQ] = useState("");
-  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [rows, setRows] = useState<UiRow[]>([]);
 
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [auditOpenFor, setAuditOpenFor] = useState<string | null>(null);
   const [auditLoading, setAuditLoading] = useState(false);
 
-  // SECTION: load profiles
-  const fetchProfiles = async () => {
+  // SECTION: load users
+  const fetchUsers = async () => {
+    if (!profile.activeOrgId) return;
+
     setError(null);
 
-    const query = supabase
-      .from("profiles")
-      .select("user_id,email,full_name,role,created_at")
-      .order("created_at", { ascending: false })
-      .limit(100);
+    // 1) memberships (authoritative roles)
+    const { data: members, error: memErr } = await supabase
+      .from("org_memberships")
+      .select("user_id, role")
+      .eq("org_id", profile.activeOrgId)
+      .limit(200);
 
-    const trimmed = q.trim();
-    const finalQuery =
-      trimmed.length > 0
-        ? query.or(`email.ilike.%${trimmed}%,full_name.ilike.%${trimmed}%`)
-        : query;
-
-    const { data, error: e } = await finalQuery;
-    if (e) {
-      setError(e.message);
+    if (memErr) {
+      setError(memErr.message);
+      setRows([]);
       return;
     }
-    setProfiles((data as ProfileRow[]) || []);
+
+    const memberships = ((members ?? []) as MembershipRow[]).filter((m) => !!m.user_id);
+    const ids = memberships.map((m) => m.user_id);
+
+    if (ids.length === 0) {
+      setRows([]);
+      return;
+    }
+
+    // 2) profiles (identity)
+    const base = supabase
+      .from("profiles")
+      .select("user_id,email,full_name,created_at")
+      .in("user_id", ids);
+
+    const trimmed = q.trim();
+    const profQuery =
+      trimmed.length > 0
+        ? base.or(`email.ilike.%${trimmed}%,full_name.ilike.%${trimmed}%`)
+        : base;
+
+    const { data: profs, error: profErr } = await profQuery;
+
+    if (profErr) {
+      setError(profErr.message);
+      setRows([]);
+      return;
+    }
+
+    const profiles = (profs ?? []) as ProfileIdentityRow[];
+
+    const profMap = new Map<string, ProfileIdentityRow>();
+    for (const p of profiles) profMap.set(p.user_id, p);
+
+    // 3) merge (membership role + profile identity)
+    const merged: UiRow[] = memberships
+      .map((m) => {
+        const p = profMap.get(m.user_id);
+        return {
+          user_id: m.user_id,
+          role: m.role,
+          email: p?.email ?? null,
+          full_name: p?.full_name ?? null,
+          created_at: p?.created_at ?? new Date(0).toISOString(),
+        };
+      })
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+
+    setRows(merged);
   };
 
   useEffect(() => {
     if (profile.loading) return;
-
-    // Deterministic: this page should never render without workspace truth
     if (!profile.activeOrgId || !profile.role) return;
-
-    fetchProfiles();
+    fetchUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile.loading, profile.activeOrgId, profile.role]);
 
-  const filteredCount = useMemo(() => profiles.length, [profiles]);
+  const filteredCount = useMemo(() => rows.length, [rows]);
 
   // SECTION: role update
   const setRole = async (userId: string, nextRole: AppRole) => {
+    if (!profile.activeOrgId) return;
+
     setSavingUserId(userId);
     setError(null);
 
-    const { error: e } = await supabase.from("profiles").update({ role: nextRole }).eq("user_id", userId);
+    const { error: updateErr } = await supabase
+      .from("org_memberships")
+      .update({ role: nextRole })
+      .eq("user_id", userId)
+      .eq("org_id", profile.activeOrgId);
 
-    if (e) {
-      setError(e.message);
+    if (updateErr) {
+      setError(updateErr.message);
       setSavingUserId(null);
       return;
     }
 
-    await fetchProfiles();
+    await fetchUsers();
     setSavingUserId(null);
   };
 
@@ -132,15 +192,11 @@ export function AdminUsers() {
     );
   }
 
-  // RequireRole should have gated already. If somehow reached, show deterministic denial.
+  // RequireRole should gate this route. This is a deterministic fallback.
   if (profile.role !== "admin") {
     return (
       <div className="lvx-page">
-        <PageHeader
-          title="Admin"
-          subtitle="Access restricted. Admin only."
-          right={<Badge variant="neutral">{profile.role ?? "—"}</Badge>}
-        />
+        <PageHeader title="Admin" subtitle="Access restricted. Admin only." right={<Badge variant="neutral">{profile.role ?? "—"}</Badge>} />
         <Card>
           <CardTitle>Restricted</CardTitle>
           <CardBody>
@@ -181,7 +237,7 @@ export function AdminUsers() {
               placeholder="Search by email or name…"
               style={{ minWidth: 260 }}
             />
-            <Button variant="primary" onClick={fetchProfiles}>
+            <Button variant="primary" onClick={fetchUsers}>
               Search
             </Button>
             <div className="lvx-muted">{filteredCount} result(s)</div>
@@ -192,11 +248,11 @@ export function AdminUsers() {
       <Card>
         <CardTitle>Users</CardTitle>
         <CardBody>
-          {profiles.length === 0 ? (
-            <div className="lvx-muted">No profiles found.</div>
+          {rows.length === 0 ? (
+            <div className="lvx-muted">No users found in this org.</div>
           ) : (
             <div style={{ display: "grid", gap: 10 }}>
-              {profiles.map((p) => (
+              {rows.map((p) => (
                 <div key={p.user_id} className="lvx-rowlink" style={{ alignItems: "center" }}>
                   <div>
                     <div style={{ fontWeight: 800 }}>
@@ -244,9 +300,8 @@ export function AdminUsers() {
                         <div style={{ display: "grid", gap: 8 }}>
                           {audit.map((a) => (
                             <div key={a.id} className="lvx-muted">
-                              {new Date(a.created_at).toLocaleString()} •{" "}
-                              <strong>{a.old_role ?? "—"}</strong> → <strong>{a.new_role}</strong> • actor:{" "}
-                              {a.actor_user_id ?? "—"}
+                              {new Date(a.created_at).toLocaleString()} • <strong>{a.old_role ?? "—"}</strong> →{" "}
+                              <strong>{a.new_role}</strong> • actor: {a.actor_user_id ?? "—"}
                             </div>
                           ))}
                         </div>
