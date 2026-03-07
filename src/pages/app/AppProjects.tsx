@@ -7,6 +7,7 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { useTerritory } from "../../territory/TerritoryContext";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../auth/AuthProvider";
+
 // SECTION: AppProjects
 export function AppProjects() {
   const t = useTerritory();
@@ -81,48 +82,61 @@ export function AppProjects() {
                 variant="primary"
                 disabled={!businessName.trim() || !street.trim()}
                 onClick={async () => {
-  if (!businessName.trim() || !street.trim()) return;
-  const user = session?.user;
-  if (!user) {
-    alert("Not authenticated");
-    return;
-  }
-  // 1️⃣ create business in Supabase
-  const { data, error } = await supabase
-    .from("businesses")
-    .insert({
-  business_name: businessName.trim(),
-  address_normalized: `${street}, ${city}, ${state} ${zip}`.trim(),
-  vertical: "home_services",
-  status: "demo",
-  agent_id: user.id,
-  google_place_id: crypto.randomUUID(),
-})
-    .select()
-    .single();
+                  if (!businessName.trim() || !street.trim()) return;
 
-  if (error) {
-    console.error("Business create error", error);
-    alert("Failed to create business");
-    return;
-  }
+                  const user = session?.user;
+                  if (!user) {
+                    alert("Not authenticated");
+                    return;
+                  }
 
-  // 2️⃣ create territory address linked to business
-  const a = t.createAddress({
-    businessName,
-    street,
-    city,
-    state,
-    zip,
-    businessId: data.id
-  });
+                  const { data: agentRow, error: agentError } = await supabase
+                    .from("agents")
+                    .select("id")
+                    .eq("user_id", user.id)
+                    .single();
 
-  setBusinessName("");
-  setStreet("");
-  setZip("");
+                  if (agentError || !agentRow) {
+                    console.error("Agent lookup failed", agentError);
+                    alert("Agent record not found");
+                    return;
+                  }
 
-  console.log("Created address + business", data.id, a.id);
-}}
+                  const { data, error } = await supabase
+                    .from("businesses")
+                    .insert({
+                      business_name: businessName.trim(),
+                      address_normalized: `${street}, ${city}, ${state} ${zip}`.trim(),
+                      vertical: "home_services",
+                      status: "demo",
+                      revenue_source: "agent",
+                      agent_id: agentRow.id,
+                      google_place_id: crypto.randomUUID(),
+                    })
+                    .select()
+                    .single();
+
+                  if (error) {
+                    console.error("Business create error", error);
+                    alert("Failed to create business");
+                    return;
+                  }
+
+                  const a = t.createAddress({
+                    businessName: businessName.trim(),
+                    street: street.trim(),
+                    city: city.trim(),
+                    state: state.trim(),
+                    zip: zip.trim(),
+                    businessId: data.id,
+                  });
+
+                  setBusinessName("");
+                  setStreet("");
+                  setZip("");
+
+                  console.log("Created address + business", data.id, a.id);
+                }}
               >
                 Create
               </Button>
@@ -163,24 +177,31 @@ export function AppProjects() {
                   </div>
                 </Link>
 
-                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                  }}
+                >
                   <Badge variant={a.status === "active_client" ? "accent" : "neutral"}>
                     {a.status.replace("_", " ")}
                   </Badge>
 
                   <Button
-  variant="ghost"
-  onClick={() => {
-    if (!a.businessId) {
-      alert("Business record not linked yet.");
-      return;
-    }
+                    variant="ghost"
+                    onClick={() => {
+                      if (!a.businessId) {
+                        alert("Business record not linked yet.");
+                        return;
+                      }
 
-    navigate(`/app/businesses/${a.businessId}/briefing`);
-  }}
->
-  Briefing
-</Button>
+                      navigate(`/app/businesses/${a.businessId}/briefing`);
+                    }}
+                  >
+                    Briefing
+                  </Button>
 
                   <Button
                     variant="ghost"
