@@ -58,9 +58,122 @@ function formatDate(value: string | null) {
 }
 
 function formatAddress(profile: BusinessProfileRow | null, business: BusinessRow | null) {
-  const profileParts = [profile?.city, profile?.state, profile?.zip].filter(Boolean);
-  if (profileParts.length > 0) return profileParts.join(", ");
+  const locationParts = [profile?.city, profile?.state].filter(Boolean);
+  if (locationParts.length > 0) return locationParts.join(", ");
   return business?.address_normalized || "No address available";
+}
+
+function formatVerticalLabel(vertical: string | null) {
+  if (!vertical) return "Unknown Vertical";
+  if (vertical === "home_services") return "Home Services";
+  if (vertical === "beauty_personal") return "Beauty / Personal";
+  if (vertical === "food_hospitality") return "Food / Hospitality";
+  return vertical;
+}
+
+function getPresenceScore(
+  profile: BusinessProfileRow | null,
+  socials: BusinessSocialRow[]
+) {
+  let score = 0;
+
+  if (profile?.website) score += 1;
+  if ((profile?.google_review_count ?? 0) > 0) score += 1;
+  if (socials.length > 0) score += 1;
+  if (socials.some((s) => !!s.last_post_date)) score += 1;
+
+  return score;
+}
+
+function getOnlinePresenceLabel(
+  profile: BusinessProfileRow | null,
+  socials: BusinessSocialRow[]
+) {
+  const score = getPresenceScore(profile, socials);
+  if (score >= 4) return "Strong";
+  if (score >= 2) return "Moderate";
+  return "Weak";
+}
+
+function buildOpportunityHeadline(
+  insights: OpportunityInsightRow[],
+  socials: BusinessSocialRow[],
+  profile: BusinessProfileRow | null
+) {
+  if (insights.length > 0) return insights[0].description;
+
+  const hasWebsite = Boolean(profile?.website);
+  const reviewCount = profile?.google_review_count ?? 0;
+  const hasInstagram = socials.some((s) => s.platform.toLowerCase() === "instagram");
+  const hasFacebook = socials.some((s) => s.platform.toLowerCase() === "facebook");
+
+  if (reviewCount >= 20 && (!hasInstagram || !hasFacebook)) {
+    return "Strong reputation but weak social visibility.";
+  }
+
+  if (!hasWebsite && socials.length === 0) {
+    return "Very limited digital presence creates a clear visibility gap.";
+  }
+
+  if (reviewCount === 0) {
+    return "Low review visibility may be weakening trust with new customers.";
+  }
+
+  return "Visibility consistency appears to be the main opportunity.";
+}
+
+function buildOpeningAngle(
+  business: BusinessRow | null,
+  profile: BusinessProfileRow | null,
+  socials: BusinessSocialRow[],
+  insights: OpportunityInsightRow[]
+) {
+  const verticalLabel = formatVerticalLabel(business?.vertical ?? null);
+  const reviewCount = profile?.google_review_count ?? 0;
+  const rating = profile?.google_rating;
+  const hasWebsite = Boolean(profile?.website);
+  const presence = getOnlinePresenceLabel(profile, socials);
+
+  if (insights.length > 0) {
+    return `You already have a business foundation in ${verticalLabel}. The immediate opportunity is improving visibility where your current presence is underperforming so more local customers see the quality of the business.`;
+  }
+
+  if (reviewCount >= 20 && rating && rating >= 4) {
+    return "You already have strong trust signals. The next step is turning that reputation into more visible, consistent marketing so more local customers notice you before they choose a competitor.";
+  }
+
+  if (!hasWebsite && presence === "Weak") {
+    return "Right now the business looks underexposed online. The opportunity is to create a stronger first impression and more consistent visibility so potential customers see professionalism immediately.";
+  }
+
+  return "The opportunity is to make the business look more visible, more current, and easier to trust when people check online before calling.";
+}
+
+function buildQuickFacts(
+  business: BusinessRow | null,
+  profile: BusinessProfileRow | null,
+  socials: BusinessSocialRow[]
+) {
+  const facts: string[] = [];
+
+  facts.push(`Vertical: ${formatVerticalLabel(business?.vertical ?? null)}`);
+  facts.push(`Location: ${formatAddress(profile, business)}`);
+
+  if (typeof profile?.google_rating === "number") {
+    facts.push(`Google Rating: ${profile.google_rating}`);
+  }
+
+  if (typeof profile?.google_review_count === "number") {
+    facts.push(`Google Reviews: ${profile.google_review_count}`);
+  }
+
+  if (profile?.services && profile.services.length > 0) {
+    facts.push(`Services: ${profile.services.slice(0, 3).join(", ")}`);
+  }
+
+  facts.push(`Social Profiles Found: ${socials.length}`);
+
+  return facts;
 }
 
 // SECTION: Component
@@ -147,6 +260,18 @@ export default function BusinessBriefing() {
     return map;
   }, [socials]);
 
+  const opportunityHeadline = useMemo(() => {
+    return buildOpportunityHeadline(insights, socials, profile);
+  }, [insights, socials, profile]);
+
+  const openingAngle = useMemo(() => {
+    return buildOpeningAngle(business, profile, socials, insights);
+  }, [business, profile, socials, insights]);
+
+  const quickFacts = useMemo(() => {
+    return buildQuickFacts(business, profile, socials);
+  }, [business, profile, socials]);
+
   const platformOrder = ["instagram", "facebook", "tiktok", "youtube"];
 
   if (loading) {
@@ -187,8 +312,15 @@ export default function BusinessBriefing() {
     <div className="p-6 space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-2xl font-bold">{business.business_name || "Unnamed Business"}</div>
-          <div className="mt-1 text-sm opacity-70">{business.vertical || "Unknown Vertical"}</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] opacity-60">
+            Business Briefing
+          </div>
+          <div className="mt-2 text-2xl font-bold">
+            {business.business_name || "Unnamed Business"}
+          </div>
+          <div className="mt-1 text-sm opacity-70">
+            {formatVerticalLabel(business.vertical)}
+          </div>
           <div className="mt-1 text-sm opacity-70">{formatAddress(profile, business)}</div>
           <div className="mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-medium">
             Status: {business.status || "Unknown"}
@@ -206,7 +338,7 @@ export default function BusinessBriefing() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-2xl border p-5">
-          <div className="text-base font-semibold">Business Summary</div>
+          <div className="text-base font-semibold">Business Snapshot</div>
           <div className="mt-3 text-sm">
             {profile?.summary || "No business summary has been added yet."}
           </div>
@@ -240,15 +372,60 @@ export default function BusinessBriefing() {
         </div>
 
         <div className="rounded-2xl border p-5">
-          <div className="text-base font-semibold">Review Snapshot</div>
+          <div className="text-base font-semibold">Online Presence</div>
           <div className="mt-4 text-3xl font-bold">
-            {profile?.google_rating ? `⭐ ${profile.google_rating}` : "No rating"}
+            {getOnlinePresenceLabel(profile, socials)}
           </div>
           <div className="mt-2 text-sm opacity-70">
             {typeof profile?.google_review_count === "number"
-              ? `${profile.google_review_count} reviews`
-              : "No review count available"}
+              ? `${profile.google_review_count} Google reviews`
+              : "Review count not available"}
           </div>
+          <div className="mt-1 text-sm opacity-70">
+            {profile?.google_rating ? `Rating: ${profile.google_rating}` : "Rating not available"}
+          </div>
+          <div className="mt-1 text-sm opacity-70">
+            {socials.length > 0
+              ? `${socials.length} social profile(s) detected`
+              : "No social profiles detected"}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border p-5">
+        <div className="text-base font-semibold">Opportunity Insight</div>
+        <div className="mt-3 text-sm">{opportunityHeadline}</div>
+
+        {insights.length > 0 && (
+          <div className="mt-4 space-y-3">
+            {insights.map((item) => (
+              <div key={item.id} className="rounded-xl border p-4">
+                <div className="text-sm font-medium">
+                  {item.insight_type || "Opportunity Insight"}
+                </div>
+                <div className="mt-1 text-sm">{item.description}</div>
+                <div className="mt-2 text-xs opacity-70">
+                  Severity: {item.severity_score ?? "Unknown"}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border p-5">
+        <div className="text-base font-semibold">Opening Angle</div>
+        <div className="mt-3 text-sm">{openingAngle}</div>
+      </div>
+
+      <div className="rounded-2xl border p-5">
+        <div className="text-base font-semibold">Quick Facts</div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {quickFacts.map((fact) => (
+            <div key={fact} className="rounded-xl border p-4 text-sm">
+              {fact}
+            </div>
+          ))}
         </div>
       </div>
 
@@ -263,7 +440,7 @@ export default function BusinessBriefing() {
               <div key={platform} className="rounded-xl border p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="font-medium">{formatPlatformLabel(platform)}</div>
-                  <div className="text-sm">{isPresent ? "✔ Present" : "❌ Missing"}</div>
+                  <div className="text-sm">{isPresent ? "Present" : "Missing"}</div>
                 </div>
 
                 <div className="mt-2 text-sm opacity-80">
@@ -289,27 +466,6 @@ export default function BusinessBriefing() {
             );
           })}
         </div>
-      </div>
-
-      <div className="rounded-2xl border p-5">
-        <div className="text-base font-semibold">Opportunity Insights</div>
-        {insights.length === 0 ? (
-          <div className="mt-3 text-sm opacity-70">No opportunity insights have been added yet.</div>
-        ) : (
-          <div className="mt-4 space-y-3">
-            {insights.map((item) => (
-              <div key={item.id} className="rounded-xl border p-4">
-                <div className="text-sm font-medium">
-                  {item.insight_type || "Opportunity Insight"}
-                </div>
-                <div className="mt-1 text-sm">{item.description}</div>
-                <div className="mt-2 text-xs opacity-70">
-                  Severity: {item.severity_score ?? "Unknown"}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
