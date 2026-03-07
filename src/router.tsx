@@ -17,6 +17,7 @@ import { AdminUsers } from "./pages/app/AdminUsers";
 import { AppHome } from "./pages/app/AppHome";
 import { AppProjects } from "./pages/app/AppProjects";
 import { AppSettings } from "./pages/app/AppSettings";
+import BusinessBriefing from "./pages/app/BusinessBriefing";
 import Performance from "./pages/app/Performance";
 
 import { ProjectLayout } from "./pages/app/ProjectLayout";
@@ -42,10 +43,8 @@ export const router = createBrowserRouter([
             path: "app",
             element: <AppLayout />,
             children: [
-              // Allowed even when blocked
               { path: "blocked", element: <Blocked /> },
 
-              // Everything else requires deterministic org+role resolution
               {
                 element: <RequireWorkspace />,
                 children: [
@@ -71,6 +70,7 @@ export const router = createBrowserRouter([
                   },
 
                   { path: "settings", element: <AppSettings /> },
+                  { path: "businesses/:businessId/briefing", element: <BusinessBriefing /> },
 
                   {
                     path: "projects/:projectId",
