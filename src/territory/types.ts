@@ -15,6 +15,7 @@ export type VisitOutcome =
 
 export type Address = {
   id: string;
+  businessId?: string;
   businessName: string;
   street: string;
   city: string;

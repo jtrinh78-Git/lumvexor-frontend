@@ -41,6 +41,7 @@ const EMPTY_STATE: TerritoryState = {
 function mapAddressRow(r: any): Address {
   return {
     id: r.id,
+    businessId: r.business_id ?? undefined,
     businessName: r.business_name,
     street: r.street,
     city: r.city,
@@ -116,7 +117,8 @@ type TerritoryApi = {
   getAssetsForCycle: (previewCycleId: string) => PreviewAsset[];
   getPrintsForCycle: (previewCycleId: string) => PrintLog[];
 
-  createAddress: (input: {
+    createAddress: (input: {
+    businessId?: string;
     businessName: string;
     street: string;
     city: string;
@@ -291,8 +293,9 @@ export function TerritoryProvider(props: { children: React.ReactNode }) {
 
       createAddress(input) {
         const createdAt = nowIso();
-        const created: Address = {
+                const created: Address = {
           id: uuid(),
+          businessId: input.businessId,
           businessName: input.businessName.trim(),
           street: input.street.trim(),
           city: input.city.trim(),
